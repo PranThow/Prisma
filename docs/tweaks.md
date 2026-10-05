@@ -95,6 +95,13 @@ Shared:
                   for it and the next, and the player's card-loading timeout flag is forced to its 5 s maximum while a
                   source is on
     LockScreenLyrics/ the line being sung in the system's now playing
+    AnimatedArtwork/ shared lock-screen artwork settings: an enable switch and a provider list, Spotify
+                  Canvas before Apple Music by default. Tap providers to enable or disable them and drag the
+                  enabled ones to change priority; an empty list stays empty. Unknown identifiers and
+                  duplicates are removed, malformed lists use the default order, and malformed enable
+                  values read off. Controls appear only on iOS 26 when MediaPlayer reports supported
+                  animated artwork keys; otherwise the page explains availability. These are preferences
+                  for artwork providers, not implementations of fetching or publishing animated artwork.
     Navigation/   the page transition fix (PageTransition.x) and opening a spotify: link (Links.x)
     Player/       the player's open and close announced (PlayerEvents.x), what the player is doing read through
                   one hook for every feature that wants it (PlayerState.x), the lock screen widget's flags, and in the
