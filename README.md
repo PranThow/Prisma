@@ -1,113 +1,129 @@
 <p align="center">
-  <img src="docs/icon.png" width="96" alt="">
+  <img src="docs/icon.png" width="96" alt="Prisma project icon">
 </p>
 
-<h1 align="center">spoti.pw</h1>
+<h1 align="center">Prisma</h1>
 
-<p align="center">Spotify, in glass.</p>
+<p align="center">A fresh look for Spotify on iOS. Open source, yours to build.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/iOS-000000?style=for-the-badge&logo=ios&logoColor=white" alt="iOS">
   <img src="https://img.shields.io/badge/Spotify-9.1.78-1ED760?style=for-the-badge&logo=spotify&logoColor=white" alt="Spotify 9.1.78">
-  <img src="https://img.shields.io/badge/Objective--C-3A95E3?style=for-the-badge&logo=apple&logoColor=white" alt="Objective-C">
-  <img src="https://img.shields.io/badge/GitHub_Actions-2671E5?style=for-the-badge&logo=githubactions&logoColor=white" alt="GitHub Actions">
-  <img src="https://img.shields.io/badge/License-GPL_v3-blue?style=for-the-badge" alt="GPL-3.0">
+  <img src="https://img.shields.io/badge/Native-iOS_16.1+-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Native look requires iOS 16.1 or newer">
+  <img src="https://img.shields.io/badge/Liquid_Glass-iOS_26+-3A95E3?style=for-the-badge&logo=apple&logoColor=white" alt="Liquid Glass redesign requires iOS 26 or newer">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL_v3-blue?style=for-the-badge" alt="GPL v3 license"></a>
 </p>
 
 <p align="center">
-  <a href="https://spoti.pw">spoti.pw</a> ·
-  <a href="#build-it">Build it</a> ·
-  <a href="docs/tweaks.md">Hack on it</a> ·
-  <a href="https://ko-fi.com/darkksh">Support</a>
+  <a href="https://github.com/PranThow/prisma/releases">Releases</a> &middot;
+  <a href="#build-prisma">Build Prisma</a> &middot;
+  <a href="docs/tweaks.md">Development guide</a> &middot;
+  <a href="https://github.com/PranThow/prisma/issues">Issues</a>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/now-playing.webp" width="16%" alt="Full screen player with lyrics">
-  <img src="docs/screenshots/album.webp" width="16%" alt="Album">
-  <img src="docs/screenshots/playlist.webp" width="16%" alt="Playlist">
-  <img src="docs/screenshots/queue.webp" width="16%" alt="Queue">
+  <img src="docs/screenshots/now-playing.webp" width="16%" alt="Full-screen player with lyrics">
+  <img src="docs/screenshots/album.webp" width="16%" alt="Album page">
+  <img src="docs/screenshots/playlist.webp" width="16%" alt="Playlist page">
+  <img src="docs/screenshots/queue.webp" width="16%" alt="Playback queue">
   <img src="docs/screenshots/live-activity.webp" width="16%" alt="Live Activity on the lock screen">
-  <img src="docs/screenshots/home.webp" width="16%" alt="Home">
+  <img src="docs/screenshots/home.webp" width="16%" alt="Home page">
 </p>
 
-A no-jailbreak Theos tweak that rebuilds Spotify for iOS in Liquid Glass, injected into your own
-decrypted IPA and signed with your own certificate.
+Prisma is an independent, GPL v3 fork of **spoti.pw**, based on its GPL-licensed source. It brings a Liquid Glass redesign and extra customization to Spotify on iOS through an Objective-C and Logos tweak built with Theos. No jailbreak is required: build it into your own decrypted Spotify IPA, then sign and sideload it.
 
-Built and tested on **Spotify 9.1.78** — use that version's IPA. The mod hooks Spotify's own classes,
-which change between releases, so another version may build and then break.
+This fork gives that open-source foundation a new home and identity, with credit to the original project's work.
 
-| | |
+## What Prisma brings
+
+Choose your look in **Settings > Mod Settings > Appearance**:
+
+- **Native:** keep Spotify's own interface and customize it with glass header buttons, a Home gradient, AMOLED backgrounds, accent colors, and controls for hiding clutter.
+- **Redesigned:** a Liquid Glass interface with a glass tab bar, search field and now playing bar; a redesigned player; Apple Music-style lyrics; cleaner Home, Search and Library screens; and reworked playlist, album and artist pages.
+
+Both looks include lyrics sources, lock-screen lyrics, player gestures, blocked artists, privacy controls, feature flags, vibrations, audio effects, speed and pitch controls, and Live Activity support. Most settings require a restart; some, including vibrations and Live Activity, apply immediately.
+
+## Compatibility
+
+Prisma is built and tested against **Spotify 9.1.78**. Use a decrypted IPA of that version. Spotify's internal classes change between releases, so other versions may build successfully but fail at runtime.
+
+| Feature | Minimum iOS version |
 |---|---|
-| The redesign | **iOS 26+** |
-| Legacy look | iOS 16.1+ |
-| Live Activity | iOS 17+ |
+| Native look | iOS 16.1 |
+| Liquid Glass redesign | iOS 26 |
+| Live Activity | iOS 17 |
 
-The redesign is `UIGlassEffect`, which only exists from iOS 26. Below that the Redesigned UI switch
-is greyed out and the mod runs Spotify's own screens with everything else it adds on top. Both live
-in Settings → Mod Settings.
+Below iOS 26, Prisma uses the native look and disables the redesign switch. Live Activity also requires a build that includes its widget extension.
 
-## Build it
+## Build Prisma
 
-No IPA is distributed. Bring a decrypted **Spotify 9.1.78** IPA; you get an unsigned
-`spoti.pw-<mod version>.ipa` to sign with SideStore, Feather or any certificate signer. Each
-[release](https://github.com/skopevoj/spoti.pw/releases) also carries the tweak's `.deb`.
+This repository does not distribute Spotify IPAs. Supply your own decrypted **Spotify 9.1.78** IPA and sign the resulting build with your own certificate or sideloading tool.
 
-### Build with GitHub Actions
+The build scripts currently retain the upstream output names, including `spoti.pw-<version>.ipa` and `spoti.dev.ipa`. These are expected filenames for Prisma builds.
 
-Fork the repo, enable Actions, run **Build IPA from your own Spotify IPA**. It takes a direct link to
-your decrypted `.ipa` and hands the built IPA back as a workflow artifact. No Mac needed; the link is
-masked in the log and the result stays in your fork.
+### With GitHub Actions
 
-### Build on a Mac
+1. Fork [PranThow/prisma](https://github.com/PranThow/prisma) and enable GitHub Actions in your fork.
+2. Open **Actions > Build IPA from your own Spotify IPA > Run workflow**.
+3. Enter a direct download link to your decrypted IPA.
+4. Choose **artifacts** as the upload method, then download the built IPA from the completed workflow run.
+5. Sign and sideload the IPA.
 
-Theos in `~/theos` and Xcode with an iPhoneOS 26+ SDK (`xcode-select` it). An SDK in `~/theos/sdks`
-alone builds too, but without the Live Activity. Then:
+No Mac is needed for this workflow. It also offers a Filebin upload option if you choose to upload the result there.
 
-    brew install make ldid dpkg zsign ideviceinstaller libimobiledevice
-    uv tool install "cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw"
+### On a Mac
 
-Put the decrypted `.ipa` in `ipa/`, then:
+Install Theos in `~/theos` and select Xcode with an iPhoneOS 26 or newer SDK using `xcode-select`. A standalone SDK in `~/theos/sdks` can build the tweak, but without the Live Activity extension.
 
-    make release    # out/spoti.pw-<version>.ipa, ready to sign
-    make install    # the same, signed with your certificate and pushed over USB
+Install the build tools:
 
-`make install` reads `SIGN_P12`, `SIGN_PROFILE` and `SIGN_P12_PASSWORD` from `.signing.env`; copy
-`.signing.env.example` and fill it in.
+```sh
+brew install make ldid dpkg zsign ideviceinstaller libimobiledevice
+uv tool install "cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw"
+```
 
-The first build spends a minute reading Spotify's flags out of your IPA. `make flags` regenerates it.
+Place your decrypted IPA in `ipa/`, then run:
 
-### Signing
+```sh
+make release    # Unsigned IPA in out/spoti.pw-<version>.ipa
+make install    # Sign and install over USB; output is out/spoti.dev.ipa
+```
 
-Sign with a bundle id matching your certificate's App ID. If it doesn't match, the app still works
-but tapping the player on the lock screen won't open it — and it tells you on first launch which id
-to use. In Feather, copy the App ID into **Identifier** and leave **PPQ protection** off; AltStore,
-SideStore and Sideloadly get this right on their own.
+For `make install`, copy `.signing.env.example` to `.signing.env` and set `SIGN_P12`, `SIGN_PROFILE`, and `SIGN_P12_PASSWORD`. Run `make install DEV_NAME=Prisma` to use Prisma as the installed app's display name.
 
-The app keeps Spotify's bundle id, so it installs over the real Spotify.
+The first build extracts Spotify's feature flags from your IPA. Run `make flags` to regenerate them.
 
-## Support
+### Signing and installation
 
-Free, and staying that way — no paid tier, no supporter-only builds. If it made your phone nicer
-to use, a coffee is a good way to say so.
+Sign with a bundle identifier matching your certificate's App ID. A mismatch can prevent lock-screen player taps from opening the app; the mod shows a warning on first launch with the identifier to use.
 
-<a href="https://ko-fi.com/darkksh">
-  <img src="https://img.shields.io/badge/Ko--fi-Buy_me_a_coffee-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" alt="Support on Ko-fi">
-</a>
+In Feather, enter the App ID in **Identifier** and leave **PPQ protection** off. You can also sign with tools such as SideStore, AltStore, or Sideloadly.
 
-## Star history
+The build retains Spotify's bundle identifier before signing. Installing it with that identifier replaces the existing Spotify app.
 
-<a href="https://star-history.com/#skopevoj/spoti.pw&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=skopevoj/spoti.pw&type=Date&theme=dark">
-    <img src="https://api.star-history.com/svg?repos=skopevoj/spoti.pw&type=Date" alt="Star history chart">
-  </picture>
-</a>
+## Contributing
 
-## Credits
+Bug reports and contributions belong in [Prisma's issues](https://github.com/PranThow/prisma/issues) and pull requests. For a bug report, include your iOS version, Spotify version, Prisma build version, chosen look, and steps to reproduce it.
 
-[cyan](https://github.com/asdfzxcvbn/pyzule-rw) injects, [Theos](https://theos.dev) builds, and
-[FLEX](https://github.com/FLEXTool/FLEX), as hopeless's AutoFLEX build in `vendor/`, is the inspector
-the view trees are read through. The lyrics hook follows
-[EeveeSpotify Reincarnated](https://github.com/SideloadLabs/EeveeSpotifyReincarnated)'s.
+Read the [development guide](docs/tweaks.md) before changing code. It covers the source layers, view-tree inspection, build targets, and known pitfalls. Native and redesigned UI changes belong in their respective layers; behavior shared by both belongs in `Shared/`.
 
-GPL-3.0. Not affiliated with Spotify.
+Useful development commands:
+
+```sh
+make install FLEX=1    # Install with the view inspector
+make session           # Record clean Spotify view trees
+make log               # Stream the tweak's device logs
+```
+
+## Credits and license
+
+Prisma builds on the GPL v3 version of [spoti.pw](https://github.com/skopevoj/spoti.pw) by skopevoj and its contributors. The original implementation and screenshots are inherited from that project.
+
+- [Theos](https://theos.dev) builds the tweak.
+- [cyan](https://github.com/asdfzxcvbn/pyzule-rw) injects it into the IPA.
+- [FLEX](https://github.com/FLEXTool/FLEX), through hopeless's AutoFLEX build in `vendor/`, provides the view inspector.
+- The lyrics hook follows [EeveeSpotify Reincarnated](https://github.com/SideloadLabs/EeveeSpotifyReincarnated).
+- Third-party audio components and their licenses are documented in [vendor/audio/README.md](vendor/audio/README.md).
+
+Prisma is licensed under the [GNU General Public License v3](LICENSE). Existing copyright and attribution notices are retained.
+
+Prisma is an independent project and is not affiliated with or endorsed by Spotify.
