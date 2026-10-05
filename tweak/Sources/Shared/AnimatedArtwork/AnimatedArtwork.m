@@ -1,5 +1,19 @@
 #import "AnimatedArtwork.h"
 
+NSString *SGAnimatedArtworkPreferredKey(NSArray *supported, NSString *tall, NSString *square) {
+    return [supported containsObject:tall] ? tall : ([supported containsObject:square] ? square : nil);
+}
+
+NSDictionary *SGAnimatedArtworkInfo(NSDictionary *info, NSString *tall, NSString *square,
+                                   NSString *key, id artwork) {
+    if (!info) return nil;
+    NSMutableDictionary *shown = [info mutableCopy];
+    [shown removeObjectForKey:tall];
+    [shown removeObjectForKey:square];
+    if (key && artwork) shown[key] = artwork;
+    return shown;
+}
+
 NSArray<NSString *> *SGAnimatedArtworkAllProviders(void) {
     return @[@"spotify", @"appleMusic"];
 }

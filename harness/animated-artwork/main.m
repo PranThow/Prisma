@@ -5,6 +5,19 @@
 
 int main(void) {
     @autoreleasepool {
+        assert([SGAnimatedArtworkPreferredKey(@[@"square", @"tall"], @"tall", @"square") isEqual:@"tall"]);
+        assert([SGAnimatedArtworkPreferredKey(@[@"square"], @"tall", @"square") isEqual:@"square"]);
+        assert(!SGAnimatedArtworkPreferredKey(@[@"unknown"], @"tall", @"square"));
+        NSDictionary *base = @{@"title": @"song", @"artist": @"lyric", @"elapsed": @42,
+                               @"rate": @0.5, @"static": @"cover", @"tall": @"old", @"square": @"old"};
+        NSDictionary *shown = SGAnimatedArtworkInfo(base, @"tall", @"square", @"square", @"new");
+        assert(!shown[@"tall"] && [shown[@"square"] isEqual:@"new"]);
+        for (NSString *key in @[@"title", @"artist", @"elapsed", @"rate", @"static"])
+            assert([shown[key] isEqual:base[key]]);
+        NSDictionary *cleared = SGAnimatedArtworkInfo(shown, @"tall", @"square", nil, nil);
+        assert(!cleared[@"tall"] && !cleared[@"square"]);
+        assert([base[@"tall"] isEqual:@"old"]); // Never mutate Spotify's dictionary.
+        assert(!SGAnimatedArtworkInfo(nil, @"tall", @"square", @"tall", @"new"));
         NSUserDefaults *store = NSUserDefaults.standardUserDefaults;
         // Volatile arguments isolate the check from the user's persisted preferences.
         [store setVolatileDomain:@{} forName:NSArgumentDomain];

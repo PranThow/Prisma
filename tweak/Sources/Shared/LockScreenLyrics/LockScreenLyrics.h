@@ -4,3 +4,7 @@
 #import <Foundation/Foundation.h>
 
 #define SGKeyLockScreenLyrics @"spotifyglass.lockScreenLyrics"
+
+// Main queue: refresh through the lyrics hook's original metadata and clock, if active.
+BOOL SGRefreshLockScreenLyrics(void);
+BOOL SGLockScreenLyricsIsRepublishing(void);

@@ -8,3 +8,6 @@ NSArray<NSString *> *SGAnimatedArtworkAllProviders(void);
 NSArray<NSString *> *SGAnimatedArtworkOrder(void);
 void SGAnimatedArtworkSetOrder(id keys);
 BOOL SGAnimatedArtworkEnabled(void);
+NSString *SGAnimatedArtworkPreferredKey(NSArray *supported, NSString *tall, NSString *square);
+NSDictionary *SGAnimatedArtworkInfo(NSDictionary *info, NSString *tall, NSString *square,
+                                   NSString *key, id artwork);

@@ -106,8 +106,7 @@ Shared:
                   metadata first, then asks Spotify's Canvas protobuf service with the captured Spotify
                   headers. Requests reject redirects; responses must match the current track and its
                   generation. SpotifyCanvas.h exposes the current track URI and video URL plus a change
-                  notification, with no credentials attached, for later download integration. It does
-                  not download or publish animated artwork. ArtworkVideo.h accepts an unauthenticated
+                  notification, with no credentials attached. ArtworkVideo.h accepts an unauthenticated
                   HTTPS clip and width/height ratio, returning a leased local file and JPEG preview on the
                   main queue. Retain the result while using its file; cancel when its track changes. Each
                   preparer replaces its previous request and suppresses stale completions. The shared
@@ -115,9 +114,20 @@ Shared:
                   clips to 60 seconds, and keeps a 128 MiB cache with leases protected from eviction.
                   Matching shapes reuse the original file with its orientation metadata; other shapes
                   apply orientation and center-crop through AVFoundation (exports capped at 64 MiB).
-                  Prepared shapes are reused; previews are generated locally. This API does not yet
-                  publish to MediaPlayer or automatically download Canvas results. Checks on macOS:
-                  sh harness/canvas/check.sh and sh harness/artwork-video/check.sh.
+                  Prepared shapes are reused; previews are generated locally. AnimatedArtworkPublisher.x
+                  connects Canvas to this preparer and iOS 26 MediaPlayer. It queries supported keys,
+                  prefers 3:4 and falls back to 1:1 when only square is supported. Each variant supplies
+                  a matching JPEG preview and a leased local video file, leaving other now-playing
+                  fields intact. Track, source, shape or enabled-provider changes cancel preparation,
+                  clear the previous artwork and invalidate old callbacks. Spotify is currently the
+                  only connected provider; Apple Music in the list does not resolve artwork yet.
+                  Readiness republishes metadata with elapsed time advanced by the reported playback
+                  rate. Lock-screen lyrics refresh through their own original metadata and clock,
+                  so either hook order keeps both the lyric line and animated artwork. Restoring the
+                  artist between lines also advances elapsed time instead of resetting its anchor.
+                  Checks on macOS: sh harness/animated-artwork/check.sh (key selection, metadata
+                  preservation/clearing and preferences), sh harness/canvas/check.sh and
+                  sh harness/artwork-video/check.sh (resolution and prepared video geometry/cache).
     Navigation/   the page transition fix (PageTransition.x) and opening a spotify: link (Links.x)
     Player/       the player's open and close announced (PlayerEvents.x), what the player is doing read through
                   one hook for every feature that wants it (PlayerState.x), the lock screen widget's flags, and in the
@@ -308,6 +318,30 @@ name under their icon, so they can be hidden but never removed, and switching th
 starts the order over. A tab of the mod's own opens its link through Spotify's link dispatcher, so it
 never lights up as the tab you are on. Hide labels, on the same page, leaves the glass bar with its
 icons alone and applies straight away too.
+
+## Animated lock-screen artwork device checks
+
+The Objective-C harnesses and the Theos build require macOS and Apple's tools; Windows can
+check documentation, diffs and layer imports but cannot validate the iOS build. The publisher
+uses Apple's [animated artwork API](https://developer.apple.com/documentation/mediaplayer/providing-animated-artwork-for-media-items).
+The following integration checks require an actual iPhone running iOS 26 with Spotify 9.1.78:
+
+- Enable Animated artwork with Spotify enabled. Lock the phone on a Canvas track and verify
+  animation, a correctly shaped preview and static artwork when there is no Canvas. Confirm
+  supported keys on the device; test square on a device reporting square without tall support.
+- With lock-screen lyrics both off and on, wait for a download while playing, paused and after
+  seeking. Readiness must preserve the position, rate, title, album, static cover and lyric line.
+  Check instrumental breaks restore the artist without moving the scrubber backwards. Repeat
+  with a diagnostic build reversing the two MediaPlayer hooks' initialization order.
+- Skip rapidly A → B → A during downloads/exports, including tracks with the same title;
+  complete an old request after skipping. No previous clip or stale asset callback may appear.
+  Disable artwork, disable Spotify in the provider list and empty the list while a request is
+  pending and while artwork is visible; the clip must clear and late completions must stay ignored.
+- Check late Canvas metadata, offline/download failures, local-file access while locked and cache
+  lease retention. Test Low Power Mode, Low Data Mode, Reduce Motion and Auto-Play Animated Images
+  off: the system may show preview/static artwork instead of animation. Repeat in both Prisma looks.
+
+These are required device checks, not results established by the command-line harnesses.
 
 ## Adding a feature
 
