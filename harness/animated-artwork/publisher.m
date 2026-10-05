@@ -218,6 +218,22 @@ int main(void) {
         prepared(p, 1, 1); assert(p.artwork);
         p = publisher(@[@"spotify"]); supported = @[@"square"]; canvasClip(@"A"); [p update];
         assert(p.preparer.ratio == 1.0); prepared(p, 0, 1); assert(p.artwork);
+        // Readiness preserves all fields and advances only the elapsed-time anchor.
+        NSDictionary *base = @{@"title":@"Same title", @"uri":state.track.URI,
+            @"artist":@"Lyric line", @"album":@"Album", @"cover":@"Static cover", @"elapsed":@10, @"rate":@1};
+        NSDictionary *shown = [p decorate:base];
+        assert(shown[@"square"] == p.artwork && [shown[@"artist"] isEqual:@"Lyric line"]);
+        p.reportedAt = CFAbsoluteTimeGetCurrent()-5; [p republish];
+        NSDictionary *resent = MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo;
+        assert([resent[@"elapsed"] doubleValue] >= 15);
+        for (NSString *field in @[@"title",@"uri",@"artist",@"album",@"cover",@"rate"])
+            assert([resent[field] isEqual:base[field]]);
+        NSMutableDictionary *paused = [base mutableCopy]; paused[@"rate"] = @0;
+        [p decorate:paused]; p.reportedAt = CFAbsoluteTimeGetCurrent()-5; [p republish];
+        assert([MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo[@"elapsed"] doubleValue] == 10);
+        NSMutableDictionary *other = [base mutableCopy]; other[@"uri"] = @"spotify:track:other";
+        assert(![p decorate:other][@"square"]);
+        assert(![p decorate:nil]);
         puts("animated artwork publisher: passed");
     }
 }

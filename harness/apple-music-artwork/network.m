@@ -133,6 +133,16 @@ void SGAppleArtworkNetworkChecks(void) {
     [cancelled cancel];
     [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:.05]];
     assert(!stale);
+    // A supplied expired token fails locally, without guest discovery or catalog traffic.
+    NSString *expired = [NSString stringWithFormat:@"%@.%@.fixture",base64JSON(@{@"alg":@"ES256"}),
+        base64JSON(@{@"exp":@(NSDate.date.timeIntervalSince1970-1)})];
+    [NSUserDefaults.standardUserDefaults setVolatileDomain:@{SGKeyAppleMusicDeveloperToken:expired} forName:NSArgumentDomain];
+    NSUInteger beforeExpired = requests;
+    assert(!resolve(resolver,@"Album",&error) && error.code == 401 && requests == beforeExpired);
+    // Removing the override invalidates its cache and returns to guest authorization.
+    rateLimited = NO;
+    [NSUserDefaults.standardUserDefaults setVolatileDomain:@{SGKeyAppleMusicDeveloperToken:@""} forName:NSArgumentDomain];
+    assert(resolve(resolver,@"Album",&error) && !error && requests > beforeExpired);
     method_exchangeImplementations(original,fake);
     [NSUserDefaults.standardUserDefaults removeVolatileDomainForName:NSArgumentDomain];
     NSLog(@"Apple artwork isolated authorization, refresh, cache, rate limit and cancellation checks passed");

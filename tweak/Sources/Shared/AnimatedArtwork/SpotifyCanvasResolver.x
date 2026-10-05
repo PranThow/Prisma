@@ -1,4 +1,6 @@
 #import "SpotifyCanvas.h"
+#import "AnimatedArtwork.h"
+#import <MediaPlayer/MediaPlayer.h>
 #import "Shared/Player/PlayerState.h"
 #import "Shared/Lyrics/SpotifyAuthorization.h"
 
@@ -24,7 +26,23 @@ SGCanvasResult *SGCanvasCurrentResult(void) { return sg_canvas; }
 - (void)playerStateDidChange:(SPTPlayerState *)state { [self resolve:state]; }
 - (void)playerTrackMetadataDidChange:(SPTPlayerState *)state { [self resolve:state]; }
 - (void)authorizationChanged:(NSNotification *)notification { [self resolve:SGPlayerState()]; }
+- (void)preferencesChanged:(NSNotification *)notification {
+    if (NSThread.isMainThread) [self resolve:SGPlayerState()];
+    else dispatch_async(dispatch_get_main_queue(), ^{ [self resolve:SGPlayerState()]; });
+}
 - (void)resolve:(SPTPlayerState *)state {
+    BOOL supported = NO;
+    if (@available(iOS 26.0, *)) {
+        supported = SGAnimatedArtworkPreferredKey(MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys,
+            MPNowPlayingInfoProperty3x4AnimatedArtwork, MPNowPlayingInfoProperty1x1AnimatedArtwork) != nil;
+    }
+    if (!supported || !SGAnimatedArtworkEnabled() || ![SGAnimatedArtworkOrder() containsObject:@"spotify"]) {
+        self.generation++;
+        [self.task cancel]; self.task = nil;
+        self.trackURI = nil; self.attemptedHeaders = nil;
+        [self publish:nil];
+        return;
+    }
     NSString *uri = SGURIString(state.track.URI);
     if (!(uri == self.trackURI || [uri isEqual:self.trackURI])) {
         self.generation++;
@@ -98,6 +116,8 @@ static SGCanvasResolver *sg_resolver;
         SGAddPlayerStateObserver(sg_resolver);
         [NSNotificationCenter.defaultCenter addObserver:sg_resolver selector:@selector(authorizationChanged:)
             name:SGSpotifyAuthorizationDidChange object:nil];
+        [NSNotificationCenter.defaultCenter addObserver:sg_resolver selector:@selector(preferencesChanged:)
+            name:NSUserDefaultsDidChangeNotification object:nil];
         [sg_resolver resolve:SGPlayerState()];
     });
 }

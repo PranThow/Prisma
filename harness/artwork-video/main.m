@@ -125,6 +125,12 @@ int main(void) { @autoreleasepool {
     assert([leases()[square.fileURL.lastPathComponent] unsignedIntegerValue] == 1);
     assert(!makeRoom(SGVideoCacheLimit,[NSSet set]));
     assert(fileSize(original.fileURL) && fileSize(square.fileURL));
+    // Evict an unleased cache entry while preserving both leased files.
+    NSURL *unleased = [cacheDirectory() URLByAppendingPathComponent:cacheName(@"unleased")];
+    assert([[@"fixture" dataUsingEncoding:NSUTF8StringEncoding] writeToURL:unleased atomically:YES]);
+    NSUInteger leasedBytes = (NSUInteger)(fileSize(original.fileURL) + fileSize(square.fileURL));
+    assert(makeRoom(SGVideoCacheLimit-leasedBytes,[NSSet set]));
+    assert(!fileSize(unleased) && fileSize(original.fileURL) && fileSize(square.fileURL));
     for (NSString *failure in @[@"404",@"large",@"bad-media",@"network-error"]) {
         NSURL *bad = [NSURL URLWithString:[NSString stringWithFormat:@"https://artwork.invalid/%@/%@",identity,failure]];
         error = nil;

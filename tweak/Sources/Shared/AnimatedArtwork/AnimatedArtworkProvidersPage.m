@@ -44,7 +44,7 @@ typedef NS_ENUM(NSInteger, SGArtworkProvidersSection) {
     self.tableView.editing = YES;
     self.tableView.allowsSelectionDuringEditing = YES;
     _footer = SGNote(@"Tap a provider to turn it on or off. Drag enabled providers into the order to try. "
-                      "Changes apply after you restart Spotify.");
+                      "Artwork changes apply immediately.");
     self.tableView.tableFooterView = _footer;
 }
 

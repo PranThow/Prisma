@@ -7,7 +7,7 @@
 UIViewController *SGLockScreenWidgetPage(void) {
     NSMutableArray<SGModRow *> *artwork = [SGAnimatedArtworkRows() mutableCopy];
     [artwork addObject:SGFlagRow(@"Companion content", @"ios-feature-lockscreen.companion_content_enabled")];
-    return [[SGModPage alloc] initWithTitle:@"Lock screen widget" intro:SGRestartNote sections:@[
+    return [[SGModPage alloc] initWithTitle:@"Lock screen widget" intro:@"Artwork changes apply immediately. Other changes apply after you restart Spotify." sections:@[
         SGSection(@"Controls", @[
             SGFlagRow(@"Like and dislike buttons", @"ios-feature-lockscreen.like_dislike_enabled"),
             SGFlagRow(@"Skip button on podcasts", @"ios-feature-lockscreen.skip_button_on_podcasts"),

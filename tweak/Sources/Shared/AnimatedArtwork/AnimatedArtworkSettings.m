@@ -6,7 +6,8 @@
 NSArray<SGModRow *> *SGAnimatedArtworkRows(void) {
     BOOL supported = NO;
     if (@available(iOS 26.0, *)) {
-        supported = MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys.count > 0;
+        supported = SGAnimatedArtworkPreferredKey(MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys,
+            MPNowPlayingInfoProperty3x4AnimatedArtwork, MPNowPlayingInfoProperty1x1AnimatedArtwork) != nil;
     }
     if (!supported) {
         SGModRow *row = SGStatRow(@"Animated artwork unavailable", ^NSString *{ return @"Unavailable"; });

@@ -51,8 +51,17 @@ The inherited implementation targets **Spotify 9.1.78**; Prisma changes still ne
 | Native look | iOS 16.1 |
 | Liquid Glass redesign | iOS 26 |
 | Live Activity | iOS 17 |
+| Animated lock-screen artwork (either look) | iOS 26 and supported MediaPlayer artwork keys |
 
 Below iOS 26, Prisma uses the native look and disables the redesign switch. Live Activity also requires a build that includes its widget extension.
+
+Animated artwork is off by default. Open **Mod Settings > Player > Lock screen widget**, enable
+**Animated artwork**, then use **Artwork providers** to toggle providers and drag their priority.
+Spotify Canvas comes before Apple Music by default; unavailable or failed clips fall through to the
+next enabled provider. Artwork settings apply immediately. Apple Music uses album motion artwork
+from the US catalog, with an undocumented guest authorization route that can stop working.
+The system controls whether animation plays; static artwork remains when no usable clip is found.
+See the [requirements, provider behavior and validation limits](docs/tweaks.md#animated-lock-screen-artwork).
 
 ## Build Prisma
 
