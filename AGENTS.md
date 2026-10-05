@@ -1,7 +1,18 @@
-# spoti.pw
+# Prisma
 
-A Theos tweak (Objective-C + Logos) injected into the decrypted Spotify iOS app. The full guide is
+Prisma is an independent GPL v3 fork of spoti.pw, maintained in `PranThow/Prisma`. It is a Theos
+tweak (Objective-C + Logos) injected into a decrypted Spotify 9.1.78 iOS app. The full guide is
 `docs/tweaks.md`; read it before changing code.
+
+## Project identity
+
+- Use **Prisma** in new project-facing documentation and links. The repository is
+  `https://github.com/PranThow/Prisma`; releases and issues belong there.
+- Preserve the GPL v3 license and existing copyright and upstream attribution notices.
+- The code and build pipeline still carry upstream names: `spotifyglass.` preference keys,
+  `[spotifyglass]` logs, `SG` / `SGR` symbols, and the `com.spotipw` package identifier.
+  Keep documentation accurate to the current implementation. Renaming persisted keys or identifiers
+  requires checking compatibility and migrations; a branding edit alone should not rename them.
 
 ## Two looks, never both
 
@@ -56,12 +67,19 @@ Rules:
 
 - Build: `make install` (signs and pushes to the phone), `make release` (IPA only). Tweak only:
   `env -u MAKELEVEL gmake -C tweak clean package`.
+- Local builds require macOS and the tools described in `README.md`. On Windows, documentation
+  edits can be checked locally, but the iOS build cannot be validated there. Report that limit.
+- `make release` writes `out/Prisma-<version>.ipa`; `make install` writes `out/Prisma-dev.ipa`.
+  Local installs use the Prisma display name; `DEV_NAME` can override it.
 - Look at Spotify's views through recorded trees (`make session` records clean ones into
   `trees/clean/`) before hooking anything. Prove every class and selector against the tree or the binary.
 - Device log: `make log` (`[spotifyglass]` lines).
 - Releases: Release Please (`.github/workflows/release.yml`). Commit as `feat:` / `fix:` (they bump
   `version.txt` and fill `CHANGELOG.md`; `chore:`, `refactor:` and `docs:` stay out). Merging its
   release PR tags `vX.Y.Z` and attaches the `.deb`. Never edit `version.txt` by hand.
+- Keep the existing commit style: a lowercase conventional prefix followed by a plain description
+  of the resulting change. Use `docs:` for documentation; add a body when the reason or validation
+  needs explaining.
 - Known traps: anything pushed onto Spotify's nav stack must conform to `SPTPageController`
   (`Settings/SGPage.m`). Setting `hidden` on views inside Spotify's `OverflowStackView` or its Encore
   stacks crashes, so use alpha. A `CADisplayLink` capped at 60 Hz drags the player's 120 Hz

@@ -14,10 +14,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/PranThow/prisma/releases">Releases</a> &middot;
+  <a href="https://github.com/PranThow/Prisma/releases">Releases</a> &middot;
   <a href="#build-prisma">Build Prisma</a> &middot;
   <a href="docs/tweaks.md">Development guide</a> &middot;
-  <a href="https://github.com/PranThow/prisma/issues">Issues</a>
+  <a href="https://github.com/PranThow/Prisma/issues">Issues</a>
 </p>
 
 <p align="center">
@@ -44,7 +44,7 @@ Both looks include lyrics sources, lock-screen lyrics, player gestures, blocked 
 
 ## Compatibility
 
-Prisma is built and tested against **Spotify 9.1.78**. Use a decrypted IPA of that version. Spotify's internal classes change between releases, so other versions may build successfully but fail at runtime.
+The inherited implementation targets **Spotify 9.1.78**; Prisma changes still need a full device build and verification. Use a decrypted IPA of that version. Spotify's internal classes change between releases, so other versions may build successfully but fail at runtime.
 
 | Feature | Minimum iOS version |
 |---|---|
@@ -58,11 +58,9 @@ Below iOS 26, Prisma uses the native look and disables the redesign switch. Live
 
 This repository does not distribute Spotify IPAs. Supply your own decrypted **Spotify 9.1.78** IPA and sign the resulting build with your own certificate or sideloading tool.
 
-The build scripts currently retain the upstream output names, including `spoti.pw-<version>.ipa` and `spoti.dev.ipa`. These are expected filenames for Prisma builds.
-
 ### With GitHub Actions
 
-1. Fork [PranThow/prisma](https://github.com/PranThow/prisma) and enable GitHub Actions in your fork.
+1. Fork [PranThow/Prisma](https://github.com/PranThow/Prisma) and enable GitHub Actions in your fork.
 2. Open **Actions > Build IPA from your own Spotify IPA > Run workflow**.
 3. Enter a direct download link to your decrypted IPA.
 4. Choose **artifacts** as the upload method, then download the built IPA from the completed workflow run.
@@ -84,11 +82,11 @@ uv tool install "cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw"
 Place your decrypted IPA in `ipa/`, then run:
 
 ```sh
-make release    # Unsigned IPA in out/spoti.pw-<version>.ipa
-make install    # Sign and install over USB; output is out/spoti.dev.ipa
+make release    # Unsigned IPA in out/Prisma-<version>.ipa
+make install    # Sign and install over USB; output is out/Prisma-dev.ipa
 ```
 
-For `make install`, copy `.signing.env.example` to `.signing.env` and set `SIGN_P12`, `SIGN_PROFILE`, and `SIGN_P12_PASSWORD`. Run `make install DEV_NAME=Prisma` to use Prisma as the installed app's display name.
+For `make install`, copy `.signing.env.example` to `.signing.env` and set `SIGN_P12`, `SIGN_PROFILE`, and `SIGN_P12_PASSWORD`. Local installs use Prisma as the display name; set `DEV_NAME` to override it.
 
 The first build extracts Spotify's feature flags from your IPA. Run `make flags` to regenerate them.
 
@@ -102,7 +100,7 @@ The build retains Spotify's bundle identifier before signing. Installing it with
 
 ## Contributing
 
-Bug reports and contributions belong in [Prisma's issues](https://github.com/PranThow/prisma/issues) and pull requests. For a bug report, include your iOS version, Spotify version, Prisma build version, chosen look, and steps to reproduce it.
+Bug reports and contributions belong in [Prisma's issues](https://github.com/PranThow/Prisma/issues) and pull requests. For a bug report, include your iOS version, Spotify version, Prisma build version, chosen look, and steps to reproduce it.
 
 Read the [development guide](docs/tweaks.md) before changing code. It covers the source layers, view-tree inspection, build targets, and known pitfalls. Native and redesigned UI changes belong in their respective layers; behavior shared by both belongs in `Shared/`.
 
@@ -113,6 +111,12 @@ make install FLEX=1    # Install with the view inspector
 make session           # Record clean Spotify view trees
 make log               # Stream the tweak's device logs
 ```
+
+## AI disclosure
+
+AI tools are used to help write documentation, review code, and implement changes in Prisma. This includes the fork's initial documentation, branding, and removal of donation prompts and upstream usage reporting. The inherited implementation and screenshots come from the original project; they are not presented as new work by Prisma.
+
+AI assistance does not establish correctness. Build and device testing are still needed, and the maintainer is responsible for the changes shipped in each release.
 
 ## Credits and license
 

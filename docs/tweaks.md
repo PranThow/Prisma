@@ -219,7 +219,7 @@ and Live Activity. The root page in `App/ModSettings.x` holds the Appearance car
 
 ## Make targets
 
-    make build      # out/spoti.pw-<version>.ipa with FLEX in it
+    make build      # out/Prisma-<version>.ipa with FLEX in it
     make release    # the same without FLEX
     make install    # build without FLEX, sign with your certificate, install over USB
     make install FLEX=1   # the same with FLEX, which is what make trees reads through
@@ -269,7 +269,7 @@ Auto / Off / On control per flag (a text field for the number and text ones), an
 (the row reads out where the build stands and opens the changelog of everything newer than it, read
 from the releases Release Please cuts, with Check now, the release to get, all the releases and Tell
 me when one is out, the sheet a newer release brings up a few seconds after Spotify opens), the
-build and Spotify's version, the site and the repo, the welcome tour again and Reset all
+build and Spotify's version, the Prisma repo, the welcome tour again and Reset all
 settings. A flag switch on a page forces that one flag and off leaves Spotify's own value, so the All
 flags page is where a flag goes back to Auto. Spotify ships its newer design behind several flags at
 once, and the redesign is built on it (the glass navigation bar, the new player slider, the sheet style

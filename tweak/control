@@ -1,7 +1,7 @@
 Package: com.spotipw
-Name: spoti.pw
+Name: Prisma
 Architecture: iphoneos-arm
 Description: Liquid Glass for the Spotify iOS app
-Maintainer: spoti.pw
-Author: spoti.pw
+Maintainer: Pranthow
+Author: spoti.pw contributors, Pranthow
 Section: Tweaks

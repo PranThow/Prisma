@@ -1,0 +1,19 @@
+name: Repository checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  layers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check source layers
+        run: sh scripts/check-layers.sh tweak/Sources
+      - name: Check build script syntax
+        run: bash -n scripts/pipeline.sh scripts/install.sh

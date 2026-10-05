@@ -5,9 +5,6 @@
 
 ### Features
 
-* a replayed welcome tour brings the donate sheet too ([7ddf0bf](https://github.com/skopevoj/spoti.pw/commit/7ddf0bf93d6f45faed74b9751ece758521bbf0a8))
-* offer the donate sheet after the first tour ([cb7bf69](https://github.com/skopevoj/spoti.pw/commit/cb7bf69db0d3582c8d77aaa52ac0d0c5e830190b))
-* support the project on Ko-fi ([b796643](https://github.com/skopevoj/spoti.pw/commit/b796643a5220c36cd556070d6279cb5fe05d7d45))
 
 
 ### Fixes

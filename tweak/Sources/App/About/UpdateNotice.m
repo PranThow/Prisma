@@ -8,16 +8,12 @@
 #import "About.h"
 #import "App/Onboarding/Onboarding.h"
 
-static NSString *const kTold = @"spotifyglass.update.told";
+static NSString *const kTold = @"spotifyglass.update.prisma.told";
 static const NSTimeInterval kSettle = 6;   // after the app comes up, for its own screens to land
 static const NSTimeInterval kRetry = 4;
 static const NSInteger kTries = 15;        // a minute of waiting for the screen, then not this run
 
 static BOOL sg_offered;   // once a run, whatever else happens
-
-BOOL SGUpdateNoticeShown(void) {
-    return sg_offered;
-}
 
 // Everything that has changed since this build, newest release first, which is what the sheet counts
 // and reads the first lines of.
@@ -97,7 +93,7 @@ void SGWatchForUpdates(void) {
                                                 usingBlock:^(NSNotification *note) {
         BOOL first = !launched;
         launched = YES;
-        if (!first && !SGUsageOwed()) return;
+        if (!first) return;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kSettle * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             BOOL tell = first && SGEnabled(SGKeyUpdateNotice);
             if (tell && SGUpdateVersion()) {   // the last check knows one already
@@ -111,10 +107,8 @@ void SGWatchForUpdates(void) {
                     offerWhenClear(kTries);
                 }];
             }
-            // Inside the six hours this does nothing and no check lands, which is the point: the
-            // sheet is for a release that turned up, not for every launch. The day's usage count is
-            // the exception, and it goes out whether or not the sheet is wanted.
-            if (tell || SGUsageOwed()) SGCheckForUpdate(NO);
+            // Inside the six hours this does nothing; the sheet is offered once per launch.
+            if (tell) SGCheckForUpdate(NO);
         });
     }];
 }
