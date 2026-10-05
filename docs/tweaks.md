@@ -101,7 +101,14 @@ Shared:
                   duplicates are removed, malformed lists use the default order, and malformed enable
                   values read off. Controls appear only on iOS 26 when MediaPlayer reports supported
                   animated artwork keys; otherwise the page explains availability. These are preferences
-                  for artwork providers, not implementations of fetching or publishing animated artwork.
+                  for artwork providers. SpotifyCanvasResolver.x follows Shared/Player's observer,
+                  including metadata arriving later for the same track. It resolves canvas_url video
+                  metadata first, then asks Spotify's Canvas protobuf service with the captured Spotify
+                  headers. Requests reject redirects; responses must match the current track and its
+                  generation. SpotifyCanvas.h exposes the current track URI and video URL plus a change
+                  notification, with no credentials attached, for later download integration. It does
+                  not download or publish animated artwork. Parser checks: sh harness/canvas/check.sh
+                  on macOS.
     Navigation/   the page transition fix (PageTransition.x) and opening a spotify: link (Links.x)
     Player/       the player's open and close announced (PlayerEvents.x), what the player is doing read through
                   one hook for every feature that wants it (PlayerState.x), the lock screen widget's flags, and in the
