@@ -112,6 +112,62 @@ make session           # Record clean Spotify view trees
 make log               # Stream the tweak's device logs
 ```
 
+## Things to reimplement
+
+### Missing functionality
+
+- [ ] **Spotify Canvas as animated lock-screen artwork**
+  - Observe Prisma’s shared player state.
+  - Read Canvas URL, identifier, and video type from track metadata.
+  - Query Spotify’s Canvas service when metadata is absent.
+  - Expose the Spotify authorization already captured by the lyrics subsystem.
+  - Encode/decode Canvas requests using existing protobuf utilities.
+  - Handle late metadata and discard results for obsolete tracks.
+- [ ] **Apple Music animated album-cover fallback**
+  - Search using artist and album names.
+  - Match exact albums before trying alternate editions.
+  - Select portrait or square editorial video.
+  - Obtain, cache, and refresh the provider’s authorization.
+  - Resolve HLS playlists to a downloadable clip.
+  - Cache successful matches and confirmed misses.
+  - Handle authorization failures, rate limits, and unavailable artwork.
+- [ ] **Artwork download and preparation**
+  - Download clips into local cache.
+  - Cancel obsolete downloads.
+  - Respect Low Data Mode.
+  - Correct video rotation and center-crop to the required aspect ratio.
+  - Avoid unnecessary re-encoding.
+  - Cache original/prepared clips with bounded disk usage.
+  - Generate a correctly sized preview image.
+- [ ] **MediaPlayer integration**
+  - Gate animated artwork on iOS 26 and runtime availability.
+  - Detect supported artwork keys; prefer 3:4, then 1:1.
+  - Supply preview-image and local-video handlers.
+  - Preserve existing now-playing metadata.
+  - Advance elapsed time correctly when republishing metadata.
+  - Clear obsolete artwork on track changes and disablement.
+  - Work alongside lock-screen lyrics in either hook order.
+  - Enable the feature in both Native and Redesigned modes.
+- [ ] **Artwork settings**
+  - Add an “Animated lock screen” switch.
+  - Add provider enable/disable and ordering controls.
+  - Default to Spotify Canvas, then Apple Music.
+  - Show an explanatory “Needs iOS 26” row on unsupported systems.
+  - Replace the current animated/video artwork flag rows with functional controls.
+  - Keep the existing companion-content control.
+- [ ] **Artwork verification**
+  - Check Canvas metadata and protobuf parsing.
+  - Check provider ordering and fallback.
+  - Check album matching and HLS parsing.
+  - Check video rotation, cropping, and cache reuse.
+  - Check stale results after rapid track changes.
+  - Check coexistence with lock-screen lyrics.
+  - Verify actual rendering on an iPhone.
+
+### Existing bug to fix
+
+- [ ] Remove the temporary clearing of the “release already announced” preference in `SGWatchForUpdates()`. Preserve Prisma’s own preference keys and release endpoint.
+
 ## AI disclosure
 
 AI tools are used to help write documentation, review code, and implement changes in Prisma. This includes the fork's initial documentation, branding, and removal of donation prompts and upstream usage reporting. The inherited implementation and screenshots come from the original project; they are not presented as new work by Prisma.
