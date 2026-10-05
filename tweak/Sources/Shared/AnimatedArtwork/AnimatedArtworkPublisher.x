@@ -12,7 +12,8 @@
 @property (nonatomic, copy) NSArray *inputs;
 @property (nonatomic, copy) NSString *trackURI;
 @property (nonatomic, copy) NSString *title;
-@property (nonatomic, copy) NSURL *source;
+@property (nonatomic, copy) NSURL *canvasSource;
+@property (nonatomic) NSUInteger providerIndex;
 @property (nonatomic, copy) NSString *key;
 @property (nonatomic, strong) id artwork;
 @property (nonatomic) NSUInteger generation;
@@ -65,55 +66,62 @@ static SGArtworkPublisher *sg_publisher;
         SGCanvasResult *canvas = SGCanvasCurrentResult();
         NSURL *source = [canvas.trackURI isEqual:uri] ? canvas.videoURL : nil;
         NSArray *order = [self enabled] && key ? SGAnimatedArtworkOrder() : @[];
-        // Late metadata, provider reorder, shape and authorization changes all invalidate callbacks.
+        // Canvas can arrive after fallback starts; only restart if its priority can improve the result.
         id token = [NSUserDefaults.standardUserDefaults objectForKey:SGKeyAppleMusicDeveloperToken];
-        NSArray *inputs = @[uri ?: @"",title ?: @"",artist ?: @"",album,source ?: NSNull.null,
+        NSArray *inputs = @[uri ?: @"",title ?: @"",artist ?: @"",album,
                             key ?: @"",order,token ?: @""];
         NSUInteger generation;
         @synchronized (self) {
-            if ([inputs isEqual:self.inputs]) return;
+            BOOL sameInputs = [inputs isEqual:self.inputs];
+            BOOL sameCanvas = source == self.canvasSource || [source isEqual:self.canvasSource];
+            self.canvasSource = source;
+            if (sameInputs) {
+                NSUInteger spotify = [order indexOfObject:@"spotify"];
+                if (sameCanvas || spotify == NSNotFound || spotify > self.providerIndex) return;
+            }
             self.inputs = inputs;
             generation = ++self.generation;
             self.trackURI = uri; self.title = title; self.key = key;
-            self.source = nil; self.artwork = nil;
+            self.artwork = nil;
+            self.providerIndex = 0;
         }
         [self.apple cancel];
         [self.preparer cancel];
         [self republish];
         if (!uri.length || !key || !order.count) return;
         double ratio = [key isEqual:MPNowPlayingInfoProperty3x4AnimatedArtwork] ? 0.75 : 1.0;
-        [self tryProviders:order index:0 canvas:source artist:artist album:album ratio:ratio generation:generation];
+        [self tryProviders:order index:0 artist:artist album:album ratio:ratio generation:generation];
     }
 }
-- (void)tryProviders:(NSArray *)order index:(NSUInteger)index canvas:(NSURL *)canvas
+- (void)tryProviders:(NSArray *)order index:(NSUInteger)index
               artist:(NSString *)artist album:(NSString *)album ratio:(double)ratio generation:(NSUInteger)generation {
-    if (generation != self.generation || index >= order.count || ![self enabled]) return;
+    if (generation != self.generation || ![self enabled]) return;
+    self.providerIndex = index;
+    if (index >= order.count) return;
     void (^resolved)(NSURL *, NSError *) = ^(NSURL *source, NSError *error) {
         if (generation != self.generation || ![self enabled]) return;
         if (error) NSLog(@"[spotifyglass] apple artwork: %@",error.localizedDescription);
-        if (!source) {
-            [self tryProviders:order index:index+1 canvas:canvas artist:artist album:album ratio:ratio generation:generation];
+        if (error || !source) {
+            [self tryProviders:order index:index+1 artist:artist album:album ratio:ratio generation:generation];
             return;
         }
         [self prepareSource:source ratio:ratio generation:generation failed:^{
-            [self tryProviders:order index:index+1 canvas:canvas artist:artist album:album ratio:ratio generation:generation];
+            [self tryProviders:order index:index+1 artist:artist album:album ratio:ratio generation:generation];
         }];
     };
-    if ([order[index] isEqual:@"spotify"]) resolved(canvas,nil);
+    if ([order[index] isEqual:@"spotify"]) resolved(self.canvasSource,nil);
     else [self.apple resolveArtist:artist album:album aspectRatio:ratio completion:resolved];
 }
 - (void)prepareSource:(NSURL *)source ratio:(double)ratio generation:(NSUInteger)generation failed:(void (^)(void))failed {
     if (@available(iOS 26.0, *)) {
         NSString *uri = self.trackURI, *key = self.key;
-        self.source = source;
         [self.preparer prepareURL:source aspectRatio:ratio completion:^(SGPreparedArtworkVideo *video, NSError *error) {
             if (generation != self.generation || ![self enabled]) return;
-            if (!video) { failed(); return; }
+            UIImage *preview = video.fileURL.isFileURL ? [UIImage imageWithData:video.previewJPEG] : nil;
+            if (error || !preview) { failed(); return; }
             @synchronized (self) {
                 if (generation != self.generation || ![self enabled] ||
-                    ![uri isEqual:SGURIString(SGPlayerState().track.URI)] || !video.fileURL.isFileURL) return;
-                UIImage *preview = [UIImage imageWithData:video.previewJPEG];
-                if (!preview) return;
+                    ![uri isEqual:SGURIString(SGPlayerState().track.URI)]) return;
                 // A -> B -> A gets a fresh ID: the old A object's handlers have been invalidated.
                 NSString *identity = [NSString stringWithFormat:@"%@|%@|%@|%lu", uri,
                     source.absoluteString, key, (unsigned long)generation];

@@ -121,6 +121,9 @@ Shared:
                   fields intact. Track, source, shape or enabled-provider changes cancel preparation,
                   clear the previous artwork and invalidate old callbacks. Providers are tried in their configured
                   order, including fallback after preparation fails.
+                  Late Canvas results restart fallback only when their priority can improve the current
+                  provider; otherwise they remain available if a higher-priority Apple request fails.
+                  Repeated notifications leave unchanged requests and successful artwork alone.
                   AppleMusicArtworkResolver.m searches Apple albums using artistName and
                   album_title metadata, independently of Spotify authorization (see Apple Music artwork below).
                   Readiness republishes metadata with elapsed time advanced by the reported playback
@@ -128,7 +131,8 @@ Shared:
                   so either hook order keeps both the lyric line and animated artwork. Restoring the
                   artist between lines also advances elapsed time instead of resetting its anchor.
                   Checks on macOS: sh harness/animated-artwork/check.sh (key selection, metadata
-                  preservation/clearing and preferences), sh harness/canvas/check.sh and
+                  preservation/clearing, preferences and mocked publisher ordering/failures/cancellation),
+                  sh harness/canvas/check.sh and
                   sh harness/artwork-video/check.sh (resolution and prepared video geometry/cache), and
                   sh harness/apple-music-artwork/check.sh (Apple matching, aspect selection and HLS parsing).
     Navigation/   the page transition fix (PageTransition.x) and opening a spotify: link (Links.x)
