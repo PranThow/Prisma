@@ -107,8 +107,17 @@ Shared:
                   headers. Requests reject redirects; responses must match the current track and its
                   generation. SpotifyCanvas.h exposes the current track URI and video URL plus a change
                   notification, with no credentials attached, for later download integration. It does
-                  not download or publish animated artwork. Parser checks: sh harness/canvas/check.sh
-                  on macOS.
+                  not download or publish animated artwork. ArtworkVideo.h accepts an unauthenticated
+                  HTTPS clip and width/height ratio, returning a leased local file and JPEG preview on the
+                  main queue. Retain the result while using its file; cancel when its track changes. Each
+                  preparer replaces its previous request and suppresses stale completions. The shared
+                  pipeline respects Low Data Mode, rejects redirects, streams at most 32 MiB, limits
+                  clips to 60 seconds, and keeps a 128 MiB cache with leases protected from eviction.
+                  Matching shapes reuse the original file with its orientation metadata; other shapes
+                  apply orientation and center-crop through AVFoundation (exports capped at 64 MiB).
+                  Prepared shapes are reused; previews are generated locally. This API does not yet
+                  publish to MediaPlayer or automatically download Canvas results. Checks on macOS:
+                  sh harness/canvas/check.sh and sh harness/artwork-video/check.sh.
     Navigation/   the page transition fix (PageTransition.x) and opening a spotify: link (Links.x)
     Player/       the player's open and close announced (PlayerEvents.x), what the player is doing read through
                   one hook for every feature that wants it (PlayerState.x), the lock screen widget's flags, and in the
