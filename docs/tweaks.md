@@ -119,15 +119,18 @@ Shared:
                   prefers 3:4 and falls back to 1:1 when only square is supported. Each variant supplies
                   a matching JPEG preview and a leased local video file, leaving other now-playing
                   fields intact. Track, source, shape or enabled-provider changes cancel preparation,
-                  clear the previous artwork and invalidate old callbacks. Spotify is currently the
-                  only connected provider; Apple Music in the list does not resolve artwork yet.
+                  clear the previous artwork and invalidate old callbacks. Providers are tried in their configured
+                  order, including fallback after preparation fails.
+                  AppleMusicArtworkResolver.m searches Apple albums using artistName and
+                  album_title metadata, independently of Spotify authorization (see Apple Music artwork below).
                   Readiness republishes metadata with elapsed time advanced by the reported playback
                   rate. Lock-screen lyrics refresh through their own original metadata and clock,
                   so either hook order keeps both the lyric line and animated artwork. Restoring the
                   artist between lines also advances elapsed time instead of resetting its anchor.
                   Checks on macOS: sh harness/animated-artwork/check.sh (key selection, metadata
                   preservation/clearing and preferences), sh harness/canvas/check.sh and
-                  sh harness/artwork-video/check.sh (resolution and prepared video geometry/cache).
+                  sh harness/artwork-video/check.sh (resolution and prepared video geometry/cache), and
+                  sh harness/apple-music-artwork/check.sh (Apple matching, aspect selection and HLS parsing).
     Navigation/   the page transition fix (PageTransition.x) and opening a spotify: link (Links.x)
     Player/       the player's open and close announced (PlayerEvents.x), what the player is doing read through
                   one hook for every feature that wants it (PlayerState.x), the lock screen widget's flags, and in the
@@ -319,6 +322,62 @@ starts the order over. A tab of the mod's own opens its link through Spotify's l
 never lights up as the tab you are on. Hide labels, on the same page, leaves the glass bar with its
 icons alone and applies straight away too.
 
+## Apple Music artwork
+
+The provider sends only the track's artist and album names to Apple's US catalog. Name matching
+folds case, accents, width and punctuation; it requires the complete normalized artist name.
+Exact album editions take priority, including an exact edition with no motion artwork. Only known
+deluxe, expanded, remaster and Single/EP suffixes allow an edition fallback; live, remix,
+re-recording and arbitrary subtitles stay distinct. Search follows up to four pages; a truncated
+search is an error rather than a confirmed miss. Tall motion is preferred for 3:4, square for 1:1;
+the other shape is a fallback that the existing preparer crops.
+
+Authorization options researched against Apple's documentation and public player on 2026-10-05:
+
+- Apple's supported [developer token method](https://developer.apple.com/documentation/applemusicapi/generating-developer-tokens)
+  uses an ES256 JWT signed with a MusicKit private key; tokens expire within six months.
+  A caller-owned token can be supplied through `spotifyglass.appleMusicDeveloperToken` in
+  Spotify's defaults, selecting `api.music.apple.com`. Prisma never stores or generates a private
+  signing key. An expired/rejected supplied token needs replacement by its owner.
+- [MusicKit automatic token management](https://developer.apple.com/documentation/musickit)
+  requires configuring the host app for MusicKit. This injected tweak does not assume that setup.
+  A [Music User Token](https://developer.apple.com/documentation/applemusicapi/user-authentication-for-musickit)
+  is for subscriber-specific data; this provider does not request one, sign in, or access a library.
+- With no supplied developer token, Prisma discovers the public player's `AMPWebPlay` guest JWT
+  from the current `music.apple.com/us/new` entry script and uses `amp-api.music.apple.com`.
+  Tokens are held in memory, rediscovered within five minutes of expiry and once after 401/403.
+  This guest route and `editorialVideo` extensions are **undocumented web-player interfaces**,
+  observed in Apple's [public player](https://music.apple.com/us/album/1989/1440935467) and its
+  current JavaScript. They can change or stop working. The documented
+  [catalog search API](https://developer.apple.com/documentation/applemusicapi/search)
+  does not promise these motion fields for caller-owned developer tokens.
+
+Every Apple request uses an isolated ephemeral session with cookies, credentials and URL caching
+disabled, Low Data Mode respected and redirects rejected. Only Apple catalog requests receive
+Apple authorization; CDN requests receive none. Spotify credentials are never read or forwarded.
+Responses are streamed with limits (HTML 4 MiB, JSON 2 MiB, script 8 MiB, playlists 256 KiB). Temporary
+network failures, 429 and 5xx retry at most twice with exponential backoff and `Retry-After`
+(seconds or HTTP date). Long delays produce a cooldown instead of holding the request open.
+Cancellation and replacement suppress stale completions. A bounded in-memory cache retains
+resolved clip URLs for six hours and confirmed search/no-motion misses for one hour; failures,
+malformed responses and unsupported playlists are not negative entries. Token-setting changes
+clear this cache. A restart clears the provider cache; prepared video files use the existing cache.
+
+The HLS resolver selects an AVC, SDR, video-only variant up to 1920 pixels per side, prioritizing
+aspect ratio and then resolution. It accepts a finite VOD playlist containing one complete MP4,
+or an initialization map starting at byte zero followed by contiguous byte ranges in the **same**
+MP4. Apple's 1989 motion playlists were verified to use this second form. It passes that full
+unauthenticated HTTPS resource to `ArtworkVideo`, which validates, limits, leases and crops it.
+It rejects encrypted, live/incomplete, discontinuous, multi-resource segmented, MPEG-TS,
+unmapped byte-range, low-latency, variable-URI, alternate-media and nested-master playlists,
+unknown HLS tags, malformed ranges, off-CDN URLs and durations over 60 seconds. Errors are logged
+without tokens and fall through to the next enabled provider. No segment is mistaken for a clip.
+
+Run `sh harness/apple-music-artwork/check.sh` on macOS for matching, edition and shape selection,
+relative playlist URLs, supported single-file ranges and the unsupported forms above. Mocked
+requests check credential isolation, authorization refresh, caches, rate limits and cancellation.
+The iOS build and actual publishing still require macOS/device checks.
+
 ## Animated lock-screen artwork device checks
 
 The Objective-C harnesses and the Theos build require macOS and Apple's tools; Windows can
@@ -329,6 +388,10 @@ The following integration checks require an actual iPhone running iOS 26 with Sp
 - Enable Animated artwork with Spotify enabled. Lock the phone on a Canvas track and verify
   animation, a correctly shaped preview and static artwork when there is no Canvas. Confirm
   supported keys on the device; test square on a device reporting square without tall support.
+- Enable Apple Music alone and try an album with motion artwork (for example, Taylor Swift's 1989),
+  an exact edition without motion, and unrelated artists with similar album names. Test provider
+  reordering and fallback, late album metadata, offline access, guest token rejection/expiry and 429.
+  Inspect requests to confirm no Spotify authorization or Music User Token goes to Apple/CDNs.
 - With lock-screen lyrics both off and on, wait for a download while playing, paused and after
   seeking. Readiness must preserve the position, rate, title, album, static cover and lyric line.
   Check instrumental breaks restore the artist without moving the scrubber backwards. Repeat

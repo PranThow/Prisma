@@ -2,11 +2,14 @@
 #import "AnimatedArtwork.h"
 #import "ArtworkVideo.h"
 #import "SpotifyCanvas.h"
+#import "AppleMusicArtwork.h"
 #import "Shared/Player/PlayerState.h"
 #import "Shared/LockScreenLyrics/LockScreenLyrics.h"
 
 @interface SGArtworkPublisher : NSObject <SGPlayerStateObserver>
 @property (nonatomic, strong) SGArtworkVideoPreparer *preparer;
+@property (nonatomic, strong) SGAppleMusicArtworkResolver *apple;
+@property (nonatomic, copy) NSArray *inputs;
 @property (nonatomic, copy) NSString *trackURI;
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic, copy) NSURL *source;
@@ -22,7 +25,7 @@ static SGArtworkPublisher *sg_publisher;
 
 @implementation SGArtworkPublisher
 - (BOOL)enabled {
-    return SGAnimatedArtworkEnabled() && [SGAnimatedArtworkOrder() containsObject:@"spotify"];
+    return SGAnimatedArtworkEnabled() && SGAnimatedArtworkOrder().count > 0;
 }
 - (void)republish {
     // Lyrics owns the original artist and its playback clock. Its resend traverses our hook in
@@ -53,29 +56,59 @@ static SGArtworkPublisher *sg_publisher;
         NSArray *keys = MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys;
         NSString *key = SGAnimatedArtworkPreferredKey(keys, MPNowPlayingInfoProperty3x4AnimatedArtwork,
                                                      MPNowPlayingInfoProperty1x1AnimatedArtwork);
-        NSString *uri = SGURIString(SGPlayerState().track.URI);
-        NSString *title = SGPlayerState().track.trackTitle;
+        SPTPlayerTrack *track = SGPlayerState().track;
+        NSString *uri = SGURIString(track.URI);
+        NSString *title = track.trackTitle;
+        NSString *artist = track.artistName;
+        id album = track.metadata[@"album_title"];
+        if (![album isKindOfClass:NSString.class]) album = @"";
         SGCanvasResult *canvas = SGCanvasCurrentResult();
-        NSURL *source = [self enabled] && key && [canvas.trackURI isEqual:uri] ? canvas.videoURL : nil;
+        NSURL *source = [canvas.trackURI isEqual:uri] ? canvas.videoURL : nil;
+        NSArray *order = [self enabled] && key ? SGAnimatedArtworkOrder() : @[];
+        // Late metadata, provider reorder, shape and authorization changes all invalidate callbacks.
+        id token = [NSUserDefaults.standardUserDefaults objectForKey:SGKeyAppleMusicDeveloperToken];
+        NSArray *inputs = @[uri ?: @"",title ?: @"",artist ?: @"",album,source ?: NSNull.null,
+                            key ?: @"",order,token ?: @""];
         NSUInteger generation;
         @synchronized (self) {
-            // nil == nil must also count as unchanged, to avoid repeated clears on pause/resume.
-            if ((uri == self.trackURI || [uri isEqual:self.trackURI]) &&
-                (source == self.source || [source isEqual:self.source]) &&
-                (key == self.key || [key isEqual:self.key]) &&
-                (title == self.title || [title isEqual:self.title])) return;
+            if ([inputs isEqual:self.inputs]) return;
+            self.inputs = inputs;
             generation = ++self.generation;
-            self.trackURI = uri;
-            self.title = title;
-            self.source = source;
-            self.key = key;
-            self.artwork = nil;
+            self.trackURI = uri; self.title = title; self.key = key;
+            self.source = nil; self.artwork = nil;
         }
+        [self.apple cancel];
         [self.preparer cancel];
         [self republish];
-        if (!source) return;
+        if (!uri.length || !key || !order.count) return;
         double ratio = [key isEqual:MPNowPlayingInfoProperty3x4AnimatedArtwork] ? 0.75 : 1.0;
+        [self tryProviders:order index:0 canvas:source artist:artist album:album ratio:ratio generation:generation];
+    }
+}
+- (void)tryProviders:(NSArray *)order index:(NSUInteger)index canvas:(NSURL *)canvas
+              artist:(NSString *)artist album:(NSString *)album ratio:(double)ratio generation:(NSUInteger)generation {
+    if (generation != self.generation || index >= order.count || ![self enabled]) return;
+    void (^resolved)(NSURL *, NSError *) = ^(NSURL *source, NSError *error) {
+        if (generation != self.generation || ![self enabled]) return;
+        if (error) NSLog(@"[spotifyglass] apple artwork: %@",error.localizedDescription);
+        if (!source) {
+            [self tryProviders:order index:index+1 canvas:canvas artist:artist album:album ratio:ratio generation:generation];
+            return;
+        }
+        [self prepareSource:source ratio:ratio generation:generation failed:^{
+            [self tryProviders:order index:index+1 canvas:canvas artist:artist album:album ratio:ratio generation:generation];
+        }];
+    };
+    if ([order[index] isEqual:@"spotify"]) resolved(canvas,nil);
+    else [self.apple resolveArtist:artist album:album aspectRatio:ratio completion:resolved];
+}
+- (void)prepareSource:(NSURL *)source ratio:(double)ratio generation:(NSUInteger)generation failed:(void (^)(void))failed {
+    if (@available(iOS 26.0, *)) {
+        NSString *uri = self.trackURI, *key = self.key;
+        self.source = source;
         [self.preparer prepareURL:source aspectRatio:ratio completion:^(SGPreparedArtworkVideo *video, NSError *error) {
+            if (generation != self.generation || ![self enabled]) return;
+            if (!video) { failed(); return; }
             @synchronized (self) {
                 if (generation != self.generation || ![self enabled] ||
                     ![uri isEqual:SGURIString(SGPlayerState().track.URI)] || !video.fileURL.isFileURL) return;
@@ -131,6 +164,7 @@ static SGArtworkPublisher *sg_publisher;
     if (@available(iOS 26.0, *)) {
         sg_publisher = [SGArtworkPublisher new];
         sg_publisher.preparer = [SGArtworkVideoPreparer new];
+        sg_publisher.apple = [SGAppleMusicArtworkResolver new];
         %init;
         dispatch_async(dispatch_get_main_queue(), ^{
             SGAddPlayerStateObserver(sg_publisher);
