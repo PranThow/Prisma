@@ -70,10 +70,14 @@ static BOOL SGLockScreenLyricsIsRepublishing(void) { return NO; }
 @interface SGAppleMusicArtworkResolver ()
 @property (nonatomic, strong) NSMutableArray *callbacks;
 @property (nonatomic) NSUInteger cancellations;
+@property (nonatomic, strong) NSURL *invalidated;
+@property (nonatomic) NSTimeInterval cooldown;
 @end
 @implementation SGAppleMusicArtworkResolver
 - (instancetype)init { if ((self = [super init])) self.callbacks = [NSMutableArray new]; return self; }
 - (void)cancel { self.cancellations++; }
+- (void)invalidateClip:(NSURL *)clip { self.invalidated = clip; }
+- (NSTimeInterval)retryDelay { return self.cooldown; }
 - (void)resolveArtist:(NSString *)artist album:(NSString *)album aspectRatio:(double)ratio
     completion:(void (^)(NSURL *, NSError *))completion { [self.callbacks addObject:[completion copy]]; }
 @end
@@ -115,7 +119,7 @@ static void track(NSString *name) {
     state.track.trackTitle = @"Same title"; state.track.artistName = @"Artist";
     state.track.metadata = @{@"album_title":@"Album"}; canvas = nil;
 }
-static void canvasClip(NSString *name) { canvas = SGCanvasFromMetadata(@{@"canvas_url":
+static void canvasClip(NSString *name) { canvas = SGCanvasFromMetadata(@{@"canvas.url":
     [@"https://canvaz.scdn.co/" stringByAppendingFormat:@"%@.mp4", name]}, state.track.URI); assert(canvas); }
 static SGArtworkPublisher *publisher(NSArray *order) {
     preferences(order, YES); supported = @[@"tall", @"square"]; track(@"A");
@@ -158,7 +162,33 @@ int main(void) {
         assert([p.preparer.urls.lastObject isEqual:canvas.videoURL]); prepared(p, 0, 1); assert(p.artwork);
         p = publisher(@[@"appleMusic", @"spotify"]); canvasClip(@"A"); [p update];
         apple(p, 0, clip(@"apple"), nil); prepared(p, 0, 0);
-        assert([p.preparer.urls.lastObject isEqual:canvas.videoURL]); prepared(p, 1, 1); assert(p.artwork);
+        assert([p.apple.invalidated isEqual:clip(@"apple")] && p.apple.callbacks.count == 2);
+        apple(p, 1, clip(@"refreshed"), nil); prepared(p, 1, 0);
+        assert([p.apple.invalidated isEqual:clip(@"refreshed")] && p.apple.callbacks.count == 2);
+        assert([p.preparer.urls.lastObject isEqual:canvas.videoURL]); prepared(p, 2, 1); assert(p.artwork);
+        p = publisher(@[@"appleMusic"]); [p update];
+        apple(p, 0, clip(@"expired"), nil); prepared(p, 0, 0);
+        apple(p, 1, clip(@"fresh"), nil); prepared(p, 1, 1);
+        assert(p.artwork && p.apple.callbacks.count == 2);
+
+        // Transient exhaustion retries twice after cooldown, without restarting pending/successful work.
+        p = publisher(@[@"appleMusic"]); [p update];
+        NSError *offline = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorNotConnectedToInternet userInfo:nil];
+        for (NSUInteger attempt = 0; attempt < 3; attempt++) {
+            apple(p, attempt, nil, offline); assert(p.exhausted);
+            [p update]; assert(p.apple.callbacks.count == attempt + 1);
+            p.retryAt = 0; [p update];
+            assert(p.apple.callbacks.count == MIN(attempt + 2, 3));
+        }
+        p = publisher(@[@"appleMusic"]); [p update]; apple(p, 0, nil, nil);
+        p.retryAt = 0; [p update]; assert(p.apple.callbacks.count == 1); // Confirmed miss.
+        p = publisher(@[@"appleMusic"]); [p update]; apple(p, 0, nil, offline);
+        p.retryAt = 0; [p update]; apple(p, 1, clip(@"recovered"), nil); prepared(p, 0, 1);
+        id recovered = p.artwork; [p update]; assert(p.artwork == recovered && p.apple.callbacks.count == 2);
+        p = publisher(@[@"appleMusic"]); [p update]; p.apple.cooldown = 65;
+        apple(p, 0, nil, offline);
+        assert(p.retryAt - CFAbsoluteTimeGetCurrent() > 64);
+        [p update]; assert(p.apple.callbacks.count == 1);
 
         // Lower-priority Canvas arriving during Apple lookup must remain available for fallback.
         p = publisher(@[@"appleMusic", @"spotify"]); [p update]; generation = p.generation;
@@ -233,6 +263,16 @@ int main(void) {
         assert([MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo[@"elapsed"] doubleValue] == 10);
         NSMutableDictionary *other = [base mutableCopy]; other[@"uri"] = @"spotify:track:other";
         assert(![p decorate:other][@"square"]);
+        // Metadata arrives before player state for another track with the same title.
+        [other removeObjectForKey:@"uri"];
+        assert(![p decorate:other][@"square"]);
+        track(@"B"); [p update];
+        assert(![p decorate:base][@"square"]);
+        // Disabled mode preserves Spotify objects but strips every still-live Prisma object.
+        preferences(@[@"spotify"], NO); [p update];
+        assert(![p decorate:shown][@"square"]);
+        other[@"square"] = @"Spotify square"; other[@"tall"] = @"Spotify tall";
+        assert([[p decorate:other] isEqual:other]);
         assert(![p decorate:nil]);
         puts("animated artwork publisher: passed");
     }

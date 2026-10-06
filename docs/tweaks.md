@@ -102,7 +102,7 @@ Shared:
                   values read off. Controls appear only on iOS 26 when MediaPlayer reports supported
                   animated artwork keys; otherwise the page explains availability. These are preferences
                   for artwork providers. SpotifyCanvasResolver.x follows Shared/Player's observer,
-                  including metadata arriving later for the same track. It resolves canvas_url video
+                  including metadata arriving later for the same track. It resolves canvas.url video
                   metadata first, then asks Spotify's Canvas protobuf service with the captured Spotify
                   headers. Requests reject redirects; responses must match the current track and its
                   generation. SpotifyCanvas.h exposes the current track URI and video URL plus a change
@@ -349,15 +349,17 @@ The complete flow is:
 1. `App/Pages.m` exposes Shared Player's Lock screen widget page under either look.
    `AnimatedArtworkSettings.m` checks OS/key support and the providers page persists validated IDs.
 2. Shared Player reports track identity and late metadata on the main queue. The Canvas resolver
-   uses valid `canvas_url` metadata first, otherwise Spotify's protobuf service with captured
+   uses valid `canvas.url` metadata first, otherwise Spotify's protobuf service with captured
    Spotify headers. It cancels and clears on disablement or loss of supported keys, and retries
-   service authorization only after the captured headers change. Apple resolution uses artist and
-   album metadata independently of Spotify credentials, as described below.
+   transient network/429/server failures at most twice after two and four seconds, even with
+   unchanged headers. Confirmed misses stay suppressed; changed headers reset the retry budget.
+   Apple resolution uses artist and album metadata independently of Spotify credentials, as described below.
 3. The publisher tries enabled providers in order, falling through after lookup, download,
    validation, crop/export or preview failure. A late higher-priority Canvas may replace fallback;
    a lower-priority Canvas does not displace a successful Apple result. Both missing leaves static
-   artwork. Repeated unchanged state does not retry an exhausted chain; a track, metadata, source,
-   shape, token or provider-setting change can restart it.
+   artwork. Pending requests, successful artwork and confirmed misses are left alone. An exhausted
+   failed chain gets at most two retries after five and thirty seconds, respecting any longer Apple
+   cooldown. Track, metadata, source, shape, token or provider-setting changes reset this budget.
 4. `ArtworkVideo.m` downloads unauthenticated HTTPS clips to leased local files, validates duration
    and geometry, applies orientation and center-crops when needed, and generates a JPEG preview.
    It limits downloads to 32 MiB, exports to 64 MiB and the cache to 128 MiB. Least recently used
@@ -365,7 +367,8 @@ The complete flow is:
    A full protected cache fails preparation and permits provider fallback. Local cache reuse can
    work offline; Apple catalog URL lookup still needs a cached result or network access.
 5. `AnimatedArtworkPublisher.x` publishes one supported key (3:4 preferred, 1:1 fallback) without
-   replacing Spotify's title, artist, album, static cover or playback rate. Readiness advances the
+   replacing Spotify's title, artist, album, static cover or playback rate. Only Prisma-owned animated
+   objects are cleared; incoming Spotify animated objects survive disablement. Readiness advances the
    elapsed position using the reported rate. Track/settings/shape changes invalidate callbacks,
    including A → B → A. When lock-screen lyrics is enabled, its original metadata and clock drive
    republication through both hooks; lyric lines and artist restoration should coexist with artwork.
@@ -375,13 +378,25 @@ an in-app video surface for this feature. Encoded video rotation is handled sepa
 AVFoundation. Low Data Mode blocks new video/Apple requests; Low Power Mode and Accessibility
 motion settings may suppress animation. Artwork availability is not guaranteed for every track,
 album edition, region or signing setup. Failed downloads are not retried by the video preparer;
-fallback proceeds, and a later input change can retry. Cached Apple URLs can expire before their
-six-hour cache lifetime, so a failed cached URL can continue falling back until expiry or restart.
+the publisher handles bounded retries and fallback. Failed Apple URLs are evicted from the
+resolver cache and get one refreshed lookup before falling back; successful URLs retain their
+six-hour cache lifetime.
 Actual protected-file access while locked and system rendering remain device checks.
-When Spotify omits the external content identifier, the publisher matches now-playing metadata
-by title alone. Two different tracks with the same title and out-of-order metadata/state reports
-can therefore be indistinguishable until player state catches up; the rapid-skip device test must
-include this case. Generation checks protect old callbacks after a reported track change.
+The publisher requires the external content identifier to match the current track URI, together
+with the title. If Spotify omits that identifier, Prisma withholds its clip because even a matching
+title, artist and album cannot prove track identity. The rapid-skip device test must include missing
+identifiers and same-title tracks. Generation checks protect old callbacks after a reported change.
+
+### Bug-fix validation (2026-10-06)
+
+The six README artwork bugs have source fixes and added regressions for dotted Canvas metadata,
+late results, Spotify artwork preservation, ambiguous track identity, bounded retries, Apple URL
+invalidation and refreshed preparation. The publisher respects Apple's request cooldown before
+retrying. All four native artwork harnesses are included in the macOS repository-checks job.
+Layer checks, build/harness shell syntax checks and `git diff --check` passed on Windows.
+All four native harness commands were attempted and stopped at `xcrun: command not found`.
+These regressions still need compilation and execution on macOS; the iOS build, both real
+MediaPlayer/lyrics hook orders and the iPhone checklist remain unverified.
 
 ### Validation record (2026-10-05)
 

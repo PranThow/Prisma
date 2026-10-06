@@ -47,6 +47,13 @@ typedef void (^SGAppleFetch)(NSData *, NSHTTPURLResponse *, NSError *);
 @end
 
 @implementation SGAppleMusicArtworkResolver
+- (NSTimeInterval)retryDelay {
+    return MAX(0, self.blockedUntil - NSDate.date.timeIntervalSince1970);
+}
+- (void)invalidateClip:(NSURL *)clip {
+    NSDictionary *cached = [self.cache objectForKey:self.cacheKey];
+    if ([cached[@"clip"] isEqual:clip]) [self.cache removeObjectForKey:self.cacheKey];
+}
 - (void)cancel {
     self.generation++;
     [self.task cancel]; self.task = nil;

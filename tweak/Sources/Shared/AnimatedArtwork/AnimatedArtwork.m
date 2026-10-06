@@ -1,4 +1,5 @@
 #import "AnimatedArtwork.h"
+#import <dispatch/dispatch.h>
 
 NSString *SGAnimatedArtworkPreferredKey(NSArray *supported, NSString *tall, NSString *square) {
     return [supported containsObject:tall] ? tall : ([supported containsObject:square] ? square : nil);
@@ -7,10 +8,20 @@ NSString *SGAnimatedArtworkPreferredKey(NSArray *supported, NSString *tall, NSSt
 NSDictionary *SGAnimatedArtworkInfo(NSDictionary *info, NSString *tall, NSString *square,
                                    NSString *key, id artwork) {
     if (!info) return nil;
+    // Weak, identity-based ownership survives track changes without retaining the system's leases.
+    static NSHashTable *owned;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ owned = [NSHashTable hashTableWithOptions:
+        NSPointerFunctionsWeakMemory | NSPointerFunctionsObjectPointerPersonality]; });
     NSMutableDictionary *shown = [info mutableCopy];
-    [shown removeObjectForKey:tall];
-    [shown removeObjectForKey:square];
-    if (key && artwork) shown[key] = artwork;
+    @synchronized (owned) {
+        for (NSString *candidate in @[tall, square])
+            if (shown[candidate] && [owned containsObject:shown[candidate]]) [shown removeObjectForKey:candidate];
+        if (key && artwork) {
+            [owned addObject:artwork];
+            shown[key] = artwork;
+        }
+    }
     return shown;
 }
 

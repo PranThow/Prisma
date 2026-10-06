@@ -8,6 +8,9 @@
 - (void)resolveArtist:(NSString *)artist album:(NSString *)album aspectRatio:(double)ratio
            completion:(void (^)(NSURL *clip, NSError *error))completion;
 - (void)cancel;
+// Preparation rejected this URL. Evict it so the next lookup can refresh the catalog/playlist.
+- (void)invalidateClip:(NSURL *)clip;
+- (NSTimeInterval)retryDelay;
 @end
 
 // Foundation-only functions exercised by harness/apple-music-artwork.

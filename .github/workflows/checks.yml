@@ -17,3 +17,14 @@ jobs:
         run: sh scripts/check-layers.sh tweak/Sources
       - name: Check build script syntax
         run: bash -n scripts/pipeline.sh scripts/install.sh
+
+  artwork:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        harness: [animated-artwork, canvas, artwork-video, apple-music-artwork]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run artwork harness
+        run: sh harness/${{ matrix.harness }}/check.sh

@@ -105,6 +105,12 @@ void SGAppleArtworkNetworkChecks(void) {
     assert(resolve(resolver,@"Album",&error) && !error);
     assert(requests == 5 && searches == 1);
     assert(resolve(resolver,@"Album",&error) && requests == 5); // Successful cache hit.
+    NSURL *failedClip = resolve(resolver,@"Album",&error);
+    [resolver invalidateClip:[NSURL URLWithString:@"https://mvod.itunes.apple.com/unrelated.mp4"]];
+    assert(resolve(resolver,@"Album",&error) && requests == 5);
+    [resolver invalidateClip:failedClip];
+    assert(resolve(resolver,@"Album",&error) && !error && searches == 2 && requests == 8);
+    assert(resolve(resolver,@"Album",&error) && requests == 8);
     assert(!resolve(resolver,@"Missing",&error) && !error);
     NSUInteger afterMiss = requests;
     assert(!resolve(resolver,@"Missing",&error) && !error && requests == afterMiss);
@@ -125,6 +131,7 @@ void SGAppleArtworkNetworkChecks(void) {
     rateLimited = YES;
     SGAppleMusicArtworkResolver *limited = [SGAppleMusicArtworkResolver new];
     assert(!resolve(limited,@"Album",&error) && error.code == 429);
+    assert(limited.retryDelay > 64);
     NSUInteger afterLimit = requests;
     assert(!resolve(limited,@"Album",&error) && error && requests == afterLimit); // Retry-After cooldown.
     __block BOOL stale = NO;

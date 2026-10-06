@@ -32,11 +32,11 @@ static SGCanvasResult *result(id address, NSString *uri) {
 
 SGCanvasResult *SGCanvasFromMetadata(id metadata, NSString *trackURI) {
     if (![metadata isKindOfClass:NSDictionary.class]) return nil;
-    id type = metadata[@"canvas_type"];
+    id type = metadata[@"canvas.type"];
     if (type && !([type isKindOfClass:NSString.class] || [type isKindOfClass:NSNumber.class])) return nil;
     if (type && ![@[@"1", @"2", @"3", @"VIDEO", @"VIDEO_LOOPING", @"VIDEO_LOOPING_RANDOM"]
                   containsObject:[[type description] uppercaseString]]) return nil;
-    return result(metadata[@"canvas_url"], trackURI);
+    return result(metadata[@"canvas.url"], trackURI);
 }
 
 NSData *SGCanvasRequestBody(NSString *trackURI) {

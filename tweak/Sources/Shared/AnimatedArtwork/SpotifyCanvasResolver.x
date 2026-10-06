@@ -14,6 +14,8 @@ SGCanvasResult *SGCanvasCurrentResult(void) { return sg_canvas; }
 @property (nonatomic, strong) NSURLSession *session;
 @property (nonatomic, strong) NSURLSessionDataTask *task;
 @property (nonatomic, copy) NSDictionary *attemptedHeaders;
+@property (nonatomic) NSUInteger retries;
+@property (nonatomic) CFAbsoluteTime retryAt;
 @end
 
 @implementation SGCanvasResolver
@@ -40,6 +42,7 @@ SGCanvasResult *SGCanvasCurrentResult(void) { return sg_canvas; }
         self.generation++;
         [self.task cancel]; self.task = nil;
         self.trackURI = nil; self.attemptedHeaders = nil;
+        self.retries = 0; self.retryAt = 0;
         [self publish:nil];
         return;
     }
@@ -50,6 +53,7 @@ SGCanvasResult *SGCanvasCurrentResult(void) { return sg_canvas; }
         self.task = nil;
         self.trackURI = uri;
         self.attemptedHeaders = nil;
+        self.retries = 0; self.retryAt = 0;
         [self publish:nil];
     }
     SGCanvasResult *metadata = SGCanvasFromMetadata(state.track.metadata, uri);
@@ -65,7 +69,11 @@ SGCanvasResult *SGCanvasCurrentResult(void) { return sg_canvas; }
     NSData *body = SGCanvasRequestBody(uri);
     NSURL *url = [NSURL URLWithString:@"https://spclient.wg.spotify.com/canvaz-cache/v0/canvases"];
     NSDictionary *headers = SGSpotifyHeadersForURL(url);
-    if (!body || !headers[@"authorization"] || [headers isEqual:self.attemptedHeaders]) return;
+    if (!body || !headers[@"authorization"]) return;
+    if ([headers isEqual:self.attemptedHeaders]) {
+        if (!self.retryAt || CFAbsoluteTimeGetCurrent() < self.retryAt) return;
+    } else self.retries = 0;
+    self.retryAt = 0;
     self.attemptedHeaders = headers;
     if (!self.session) {
         NSURLSessionConfiguration *config = NSURLSessionConfiguration.ephemeralSessionConfiguration;
@@ -94,8 +102,18 @@ SGCanvasResult *SGCanvasCurrentResult(void) { return sg_canvas; }
                 ![uri isEqual:SGURIString(SGPlayerState().track.URI)]) return;
             self.task = nil;
             [self publish:canvas];
-            // Credentials may have refreshed while the request was in flight. The header comparison
-            // prevents retries with the same credentials, including a missing-Canvas response.
+            BOOL transient = http.statusCode == 429 || http.statusCode >= 500 ||
+                ([error.domain isEqual:NSURLErrorDomain] && error.code != NSURLErrorCancelled &&
+                 error.code != NSURLErrorServerCertificateUntrusted && error.code != NSURLErrorDataNotAllowed);
+            if (!canvas && transient && self.retries < 2) {
+                NSTimeInterval delay = self.retries++ ? 4 : 2;
+                self.retryAt = CFAbsoluteTimeGetCurrent() + delay;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
+                    dispatch_get_main_queue(), ^{
+                        if (generation == self.generation) [self resolve:SGPlayerState()];
+                    });
+            }
+            // Confirmed misses stay suppressed; new credentials can still recover immediately.
             if (!canvas) [self resolve:SGPlayerState()];
         });
     }];

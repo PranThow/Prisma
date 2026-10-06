@@ -11,11 +11,14 @@ int main(void) {
         NSDictionary *base = @{@"title": @"song", @"artist": @"lyric", @"elapsed": @42,
                                @"rate": @0.5, @"static": @"cover", @"tall": @"old", @"square": @"old"};
         NSDictionary *shown = SGAnimatedArtworkInfo(base, @"tall", @"square", @"square", @"new");
-        assert(!shown[@"tall"] && [shown[@"square"] isEqual:@"new"]);
+        assert([shown[@"tall"] isEqual:@"old"] && [shown[@"square"] isEqual:@"new"]);
         for (NSString *key in @[@"title", @"artist", @"elapsed", @"rate", @"static"])
             assert([shown[key] isEqual:base[key]]);
         NSDictionary *cleared = SGAnimatedArtworkInfo(shown, @"tall", @"square", nil, nil);
-        assert(!cleared[@"tall"] && !cleared[@"square"]);
+        assert([cleared[@"tall"] isEqual:@"old"] && !cleared[@"square"]);
+        assert([SGAnimatedArtworkInfo(base, @"tall", @"square", nil, nil) isEqual:base]);
+        id sameValue = [NSMutableString stringWithString:@"new"];
+        assert(SGAnimatedArtworkInfo(@{@"square":sameValue}, @"tall", @"square", nil, nil)[@"square"] == sameValue);
         assert([base[@"tall"] isEqual:@"old"]); // Never mutate Spotify's dictionary.
         assert(!SGAnimatedArtworkInfo(nil, @"tall", @"square", @"tall", @"new"));
         NSUserDefaults *store = NSUserDefaults.standardUserDefaults;

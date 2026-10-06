@@ -121,61 +121,80 @@ make session           # Record clean Spotify view trees
 make log               # Stream the tweak's device logs
 ```
 
-## Things to reimplement
+## Implementation status
 
-### Missing functionality
+The animated-artwork implementation and fixes below are present. Checked items mean code is
+written, not that the iOS build or device behavior is verified.
 
-- [ ] **Spotify Canvas as animated lock-screen artwork**
-  - Observe Prisma’s shared player state.
-  - Read Canvas URL, identifier, and video type from track metadata.
-  - Query Spotify’s Canvas service when metadata is absent.
-  - Expose the Spotify authorization already captured by the lyrics subsystem.
-  - Encode/decode Canvas requests using existing protobuf utilities.
-  - Handle late metadata and discard results for obsolete tracks.
-- [ ] **Apple Music animated album-cover fallback**
-  - Search using artist and album names.
-  - Match exact albums before trying alternate editions.
-  - Select portrait or square editorial video.
-  - Obtain, cache, and refresh the provider’s authorization.
-  - Resolve HLS playlists to a downloadable clip.
-  - Cache successful matches and confirmed misses.
-  - Handle authorization failures, rate limits, and unavailable artwork.
-- [ ] **Artwork download and preparation**
-  - Download clips into local cache.
-  - Cancel obsolete downloads.
-  - Respect Low Data Mode.
-  - Correct video rotation and center-crop to the required aspect ratio.
-  - Avoid unnecessary re-encoding.
-  - Cache original/prepared clips with bounded disk usage.
-  - Generate a correctly sized preview image.
-- [ ] **MediaPlayer integration**
-  - Gate animated artwork on iOS 26 and runtime availability.
-  - Detect supported artwork keys; prefer 3:4, then 1:1.
-  - Supply preview-image and local-video handlers.
-  - Preserve existing now-playing metadata.
-  - Advance elapsed time correctly when republishing metadata.
-  - Clear obsolete artwork on track changes and disablement.
-  - Work alongside lock-screen lyrics in either hook order.
-  - Enable the feature in both Native and Redesigned modes.
-- [ ] **Artwork settings**
-  - Add an “Animated lock screen” switch.
-  - Add provider enable/disable and ordering controls.
-  - Default to Spotify Canvas, then Apple Music.
-  - Show an explanatory “Needs iOS 26” row on unsupported systems.
-  - Replace the current animated/video artwork flag rows with functional controls.
-  - Keep the existing companion-content control.
-- [ ] **Artwork verification**
-  - Check Canvas metadata and protobuf parsing.
-  - Check provider ordering and fallback.
-  - Check album matching and HLS parsing.
-  - Check video rotation, cropping, and cache reuse.
-  - Check stale results after rapid track changes.
-  - Check coexistence with lock-screen lyrics.
-  - Verify actual rendering on an iPhone.
+- [x] Spotify Canvas resolver and Spotify authorization capture.
+- [x] Apple Music album lookup, authorization, HLS resolution, and provider fallback.
+- [x] Video downloading, cancellation, bounded caching, rotation/cropping, and preview generation.
+- [x] iOS 26 MediaPlayer integration for both Native and Redesigned modes.
+- [x] Animated-artwork switch and provider enable/disable/order settings.
+- [x] Remove the temporary reset of the already-announced update preference.
+- [ ] Complete macOS harness execution, iOS build validation, and iPhone integration testing.
 
-### Existing bug to fix
+### Artwork bug fixes
 
-- [ ] Remove the temporary clearing of the “release already announced” preference in `SGWatchForUpdates()`. Preserve Prisma’s own preference keys and release endpoint.
+The six findings from the 2026-10-05 source review have code fixes and regression checks.
+Native harness execution and device reproduction remain pending.
+
+- [x] **Correct Canvas metadata keys (P1).**
+  [SpotifyCanvas.m](tweak/Sources/Shared/AnimatedArtwork/SpotifyCanvas.m) reads `canvas.url` and
+  `canvas.type`. Fixtures cover video and image types; the resolver check covers late metadata
+  canceling an in-flight service result. Real Spotify metadata still needs device validation.
+- [x] **Preserve Spotify's animated artwork when Prisma artwork is disabled (P2).**
+  [AnimatedArtwork.m](tweak/Sources/Shared/AnimatedArtwork/AnimatedArtwork.m) tracks Prisma objects
+  by identity and removes only those objects, including stale objects from previous tracks.
+  Incoming Spotify objects remain intact; the harness covers disabled mode with existing artwork.
+- [x] **Withhold ambiguous clips for tracks sharing a title (P2).**
+  [AnimatedArtworkPublisher.x](tweak/Sources/Shared/AnimatedArtwork/AnimatedArtworkPublisher.x)
+  requires the external content identifier to match the current track URI as well as the title.
+  Without that identifier, Prisma withholds its clip. Checks cover metadata arriving before player
+  state, missing identifiers, and old metadata after player state changes.
+- [x] **Allow bounded recovery after transient Canvas failures (P2).**
+  [SpotifyCanvasResolver.x](tweak/Sources/Shared/AnimatedArtwork/SpotifyCanvasResolver.x) retries
+  network errors, 429 and server failures at most twice with unchanged credentials, after two and
+  four seconds. Confirmed misses remain suppressed; changed credentials can start a fresh attempt.
+- [x] **Invalidate failed cached Apple clip URLs (P2).**
+  [AppleMusicArtworkResolver.m](tweak/Sources/Shared/AnimatedArtwork/AppleMusicArtworkResolver.m)
+  evicts the current cached clip after preparation fails. The publisher allows one refreshed
+  lookup before continuing fallback; successful cached clips remain reusable.
+- [x] **Recover an exhausted provider chain on the same track (P2).**
+  [AnimatedArtworkPublisher.x](tweak/Sources/Shared/AnimatedArtwork/AnimatedArtworkPublisher.x)
+  retries failed chains at most twice, after five and thirty seconds or Apple's longer cooldown.
+  Pending requests, successful artwork and confirmed misses stay unchanged. Input changes reset
+  the retry budget and invalidate old callbacks.
+
+### Remaining upstream parity differences
+
+These are current limitations or product choices, separate from the bugs above.
+
+- [ ] **HEVC artwork:** HLS selection currently accepts AVC only; upstream prefers HEVC. HEVC-only
+  motion artwork is unavailable until supported variants can be selected and validated.
+- [ ] **Collaborative-artist matching:** exact normalized artist equality can miss albums where
+  Spotify names one artist and Apple credits several. Add matching that recognizes those credits
+  without accepting unrelated artists.
+- **Alternate editions:** Prisma deliberately stops at an exact edition without motion artwork;
+  upstream can use another edition that has animation. Decide whether to keep this stricter behavior.
+- **Clip size:** Prisma's 32 MiB download cap excludes some clips upstream accepts. Adjust only if
+  needed, keeping bounded downloads and cache usage.
+- **Default:** artwork is off by default in Prisma and on by default upstream.
+
+### Verification still required
+
+- [ ] Run `sh harness/animated-artwork/check.sh`, `sh harness/canvas/check.sh`,
+  `sh harness/artwork-video/check.sh`, and `sh harness/apple-music-artwork/check.sh` on macOS.
+  All four stop at `xcrun: command not found` in the reviewed Windows workspace.
+- [ ] Exercise the real lock-screen lyrics integration in both MediaPlayer hook orders. The
+  publisher harness currently stubs both lyrics integration functions to return `NO`.
+- [x] Add all four native artwork harnesses to the macOS job in
+  [repository checks](.github/workflows/checks.yml). CI execution is still pending.
+- [ ] Complete the [iPhone integration checklist](docs/tweaks.md#animated-lock-screen-artwork-device-checks),
+  including rapid skips, offline recovery, provider changes, and lock-screen rendering.
+
+Layer checks, shell syntax checks for all four new harnesses, and `git diff --check` passed during
+review. Native compilation and execution remain unverified.
 
 ## AI disclosure
 

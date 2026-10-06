@@ -15,24 +15,24 @@ int main(void) {
         assert(!SGCanvasFromMetadata(nil, uri));
         assert(!SGCanvasFromMetadata(@[], uri));
         assert(!SGCanvasFromMetadata(@{}, uri));
-        assert(!SGCanvasFromMetadata(@{@"canvas_url": @42}, uri));
-        assert(!SGCanvasFromMetadata(@{@"canvas_url": video, @"canvas_type": @[]}, uri));
+        assert(!SGCanvasFromMetadata(@{@"canvas.url": @42}, uri));
+        assert(!SGCanvasFromMetadata(@{@"canvas.url": video, @"canvas.type": @[]}, uri));
         for (id type in @[@1, @2, @3, @"VIDEO", @"video_looping", @"VIDEO_LOOPING_RANDOM"]) {
-            SGCanvasResult *canvas = SGCanvasFromMetadata(@{@"canvas_url": video, @"canvas_type": type}, uri);
+            SGCanvasResult *canvas = SGCanvasFromMetadata(@{@"canvas.url": video, @"canvas.type": type}, uri);
             assert([canvas.trackURI isEqual:uri]);
             assert([canvas.videoURL.absoluteString isEqual:video]);
         }
-        assert(SGCanvasFromMetadata(@{@"canvas_url": video}, uri));
+        assert(SGCanvasFromMetadata(@{@"canvas.url": video}, uri));
         for (id type in @[@0, @4, @"IMAGE", @"GIF", @"garbage"])
-            assert(!SGCanvasFromMetadata(@{@"canvas_url": video, @"canvas_type": type}, uri));
+            assert(!SGCanvasFromMetadata(@{@"canvas.url": video, @"canvas.type": type}, uri));
         for (NSString *url in @[@"http://canvaz.scdn.co/a.mp4", @"https://canvaz.scdn.co/a.jpg",
                 @"https://scdn.co.evil.test/a.mp4", @"https://evilscdn.co/a.mp4",
                 @"https://user:pass@canvaz.scdn.co/a.mp4", @"https://canvaz.scdn.co:444/a.mp4", @"bad"])
-            assert(!SGCanvasFromMetadata(@{@"canvas_url": url}, uri));
+            assert(!SGCanvasFromMetadata(@{@"canvas.url": url}, uri));
         for (NSString *badURI in @[@"", @"spotify:episode:0123456789ABCDEFGHIJKL",
                 @"spotify:track:short", @"spotify:track:0123456789ABCDEFGHIJK/"]) {
             assert(!SGCanvasRequestBody(badURI));
-            assert(!SGCanvasFromMetadata(@{@"canvas_url": video}, badURI));
+            assert(!SGCanvasFromMetadata(@{@"canvas.url": video}, badURI));
         }
         assert(!SGCanvasRequestBody(nil));
         SGPBField *entity = SGPBFirst(SGPBParse(SGCanvasRequestBody(uri)), 1);
