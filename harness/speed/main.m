@@ -60,9 +60,15 @@ static void check(OSStatus status, const char *what) {
 @end
 
 @implementation SGRHarnessDelegate {
+    AudioUnit _audioUnits[3];
     SPTPlayerState *_state;
     uint64_t _lastDecoded;
     NSTimeInterval _lastAt, _startedAt;
+}
+
+- (void)dealloc {
+    if (_audioUnits[2]) AudioOutputUnitStop(_audioUnits[2]);
+    for (unsigned i = 0; i < 3; i++) if (_audioUnits[i]) AudioComponentInstanceDispose(_audioUnits[i]);
 }
 
 - (void)startChain {
@@ -71,6 +77,7 @@ static void check(OSStatus status, const char *what) {
     AudioUnit converter = make(kAudioUnitType_FormatConverter, kAudioUnitSubType_AUConverter);
     AudioUnit mixer = make(kAudioUnitType_Mixer, kAudioUnitSubType_MultiChannelMixer);
     AudioUnit output = make(kAudioUnitType_Output, kAudioUnitSubType_RemoteIO);
+    _audioUnits[0] = converter; _audioUnits[1] = mixer; _audioUnits[2] = output;
     AURenderCallbackStruct callback = {decoder, NULL};
     check(AudioUnitSetProperty(converter, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof callback), "callback");
     AudioUnitConnection toMixer = {converter, 0, 0}, toOutput = {mixer, 0, 0};

@@ -321,10 +321,11 @@ registers in `Core/SGFlagForce.h`. A change shows after Spotify restarts.
 
 The tab editor on the Navbar page is the exception and applies as soon as the bar lays out again. It lists the tabs in the order
 the bar shows them: drag to reorder, tap to hide or show, and Add a tab puts a page of Spotify's or
-any `spotify:` link on the bar with one of Encore's own glyphs. Spotify's own tabs are kept by the
+any `spotify:` link on the bar with an Encore glyph or an SF Symbol. The editor has name and link
+fields, an icon preview and a searchable picker. Spotify's own tabs are kept by the
 name under their icon, so they can be hidden but never removed, and switching the app's language
 starts the order over. A tab of the mod's own opens its link through Spotify's link dispatcher, so it
-never lights up as the tab you are on. Hide labels, on the same page, leaves the glass bar with its
+keeps its selected state while its destination is open. Hide labels, on the same page, leaves the glass bar with its
 icons alone and applies straight away too.
 
 ## Animated lock-screen artwork
@@ -438,7 +439,8 @@ Release Please continues to manage version changes; this validation does not pub
 ## Apple Music artwork
 
 The provider sends only the track's artist and album names to Apple's US catalog. Name matching
-folds case, accents, width and punctuation; it requires the complete normalized artist name.
+folds case, accents, width and punctuation; it requires the complete normalized artist name or
+the same complete set of explicitly credited collaborators. A lead-artist substring never matches.
 Exact album editions take priority, including an exact edition with no motion artwork. Only known
 deluxe, expanded, remaster and Single/EP suffixes allow an edition fallback; live, remix,
 re-recording and arbitrary subtitles stay distinct. Search follows up to four pages; a truncated
@@ -476,7 +478,7 @@ resolved clip URLs for six hours and confirmed search/no-motion misses for one h
 malformed responses and unsupported playlists are not negative entries. Token-setting changes
 clear this cache. A restart clears the provider cache; prepared video files use the existing cache.
 
-The HLS resolver selects an AVC, SDR, video-only variant up to 1920 pixels per side, prioritizing
+The HLS resolver selects an AVC or hardware-supported HEVC, SDR, video-only variant up to 1920 pixels per side, prioritizing
 aspect ratio and then resolution. It accepts a finite VOD playlist containing one complete MP4,
 or an initialization map starting at byte zero followed by contiguous byte ranges in the **same**
 MP4. Apple's 1989 motion playlists were verified to use this second form. It passes that full

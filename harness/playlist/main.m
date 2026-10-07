@@ -1,3 +1,5 @@
+#import "Redesigned/Kit/SGRHeaderInfo.h"
+#import <assert.h>
 // A mock of Spotify's playlist page under its own class names and accessibility identifiers, built from
 // trees/clean/playlist/01.txt, so Redesigned/Playlist can be laid out and looked at on the Mac.
 #import <UIKit/UIKit.h>
@@ -359,6 +361,19 @@ static void buildLikedSongs(UIViewController *page, CGFloat W) {
 @implementation SGRHarnessDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)options {
+    UIView *reveal = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 320, 640)];
+    SGRFinishEntityPage(reveal, NO);
+    assert(reveal.alpha == 0);
+    assert(reveal.subviews.count == 1 && !reveal.subviews.firstObject.userInteractionEnabled);
+    SGRFinishEntityPage(reveal, YES);
+    assert(reveal.alpha == 1);
+    UIView *fallback = [[UIView alloc] initWithFrame:reveal.frame];
+    SGRFinishEntityPage(fallback, NO);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        assert(fallback.alpha == 1);
+        NSLog(@"[harness] entity reveal readiness/fallback checks passed");
+    });
+
     self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
     CGFloat W = self.window.bounds.size.width, H = self.window.bounds.size.height;
 

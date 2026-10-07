@@ -24,3 +24,6 @@ void SGRefreshTabBar(void);
 
 UIViewController *SGNavbarSettingsPage(void);   // the tab editor, in Mod Settings
 UIViewController *SGNavbarEditorPage(void);     // the tab editor alone, for the welcome tour
+
+BOOL SGNavbarCustomSelected(UIView *item);
+void SGNavbarSelectItem(UIView *item);

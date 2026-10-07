@@ -10,6 +10,7 @@
 #import "Shared/LyricsSources/LyricsSources.h"
 #import "Headers/SPTPlayer.h"
 #import "SpotifyAuthorization.h"
+#import "Shared/Player/PlayerState.h"
 
 static const NSUInteger kKeptTracks = 40;
 static const NSUInteger kSeenTracks = 200;
@@ -20,6 +21,7 @@ static const NSTimeInterval kRetryPause = 10, kRetryPauseMost = 60;
 static NSString *const kSpclientHeaders[] = {@"authorization", @"client-token", @"app-platform", @"spotify-app-version", @"user-agent", @"accept-language"};
 
 static NSMutableDictionary<NSString *, NSArray<SGKaraokeLine *> *> *sg_lyrics;
+static NSMutableDictionary<NSString *, NSDate *> *sg_keptAt;
 static NSMutableSet<NSString *> *sg_requested;
 // Of those, the ones with a request still out or waiting out its pause. A full cache spares their lines
 // and leaves them asked for, so no second request runs beside the first.
@@ -101,10 +103,12 @@ static void keep(NSString *track, NSArray<SGKaraokeLine *> *lines) {
         for (NSString *kept in sg_lyrics.allKeys) {
             if ([spared containsObject:kept]) continue;
             [sg_lyrics removeObjectForKey:kept];
+            [sg_keptAt removeObjectForKey:kept];
             [sg_requested removeObject:kept];
         }
     }
     sg_lyrics[track] = lines;
+    sg_keptAt[track] = NSDate.date;
 }
 
 void SGKaraokeKeepLines(NSString *track, NSArray<SGKaraokeLine *> *lines) {
@@ -137,6 +141,10 @@ static void completed(NSURLSession *session, NSURLSessionTask *task, NSError *er
 }
 
 NSArray<SGKaraokeLine *> *SGKaraokeLinesForTrack(NSString *trackID) {
+    if (trackID && -[sg_keptAt[trackID] timeIntervalSinceNow] >= 86400 && ![sg_asking containsObject:trackID]) {
+        [sg_lyrics removeObjectForKey:trackID]; [sg_keptAt removeObjectForKey:trackID];
+        [sg_requested removeObject:trackID];
+    }
     return trackID ? sg_lyrics[trackID] : nil;
 }
 
@@ -200,7 +208,7 @@ void SGKaraokeAskSpotifyForTiming(NSString *trackID) {
 }
 
 void SGKaraokeRequestLyrics(NSString *trackID) {
-    if (!trackID || sg_lyrics[trackID] || [sg_requested containsObject:trackID]) return;
+    if (!trackID || SGKaraokeLinesForTrack(trackID) || [sg_requested containsObject:trackID]) return;
     if (!sg_ownSources) {
         requestFromSpotify(trackID);
         return;
@@ -292,6 +300,20 @@ static void prefetch(SPTPlayerTrack *track, NSString *trackID, SPTPlayerState *s
     SGLyricsPrefetch(nextID);
 }
 
+// The player observer continues receiving tracks while no lyrics view is ticking.
+@interface SGKaraokeStateObserver : NSObject <SGPlayerStateObserver>
+@end
+@implementation SGKaraokeStateObserver
+- (void)playerStateDidChange:(SPTPlayerState *)state {
+    NSString *trackID = idOf(state.track);
+    if (!trackID) return;
+    remember(state.track, trackID);
+    prefetch(state.track, trackID, state);
+    SGKaraokeRequestLyrics(trackID);
+}
+@end
+static SGKaraokeStateObserver *sg_stateObserver;
+
 %group SGKaraokePlayer
 %hook SPTEsperantoPlayer
 - (id)state {
@@ -344,10 +366,19 @@ static void prefetch(SPTPlayerTrack *track, NSString *trackID, SPTPlayerState *s
     if (!SGRedesignedUI() && !SGFlag(SGKeyLockScreenLyrics, NO) && !SGLyricsEnabled()) return;
     sg_seenTracks = [NSMutableDictionary dictionary];
     sg_lyrics = [NSMutableDictionary dictionary];
+    sg_keptAt = [NSMutableDictionary dictionary];
     sg_requested = [NSMutableSet set];
     sg_asking = [NSMutableSet set];
     sg_losses = [NSMutableDictionary dictionary];
     sg_ownSources = SGLyricsEnabled();
+    sg_stateObserver = [SGKaraokeStateObserver new];
+    SGAddPlayerStateObserver(sg_stateObserver);
+    NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+    for (NSString *name in @[UIApplicationDidBecomeActiveNotification, SGSpotifyAuthorizationDidChange]) {
+        [center addObserverForName:name object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+            [sg_stateObserver playerStateDidChange:SGPlayerState() ?: playerState()];
+        }];
+    }
     %init(SGKaraokePlayer);
     SGLog(@"karaoke: on");
     SGRequireClasses(@[

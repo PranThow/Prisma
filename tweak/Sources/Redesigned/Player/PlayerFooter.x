@@ -184,10 +184,7 @@ static void lowerRow(UIView *row) {
     });
 }
 
-%hook _TtC20NowPlaying_ModesImpl18FooterElementsUnit
-- (void)viewDidLayoutSubviews {
-    %orig;
-    UIView *host = ((UIViewController *)self).viewIfLoaded;
+static void styleFooter(UIView *host) {
     if (!host) return;
     // The unit lays out before its row does, and the moves are measured from where the row put things.
     [SGRowIn(host) layoutIfNeeded];
@@ -229,10 +226,18 @@ static void lowerRow(UIView *row) {
               connectFrom, glyph ? @"glyph" : @"button", round(width * kMiddle), queueFrom, round(width * (rtl ? kLeading : kTrailing)), share ? @"gone" : @"not found");
     });
 }
+
+%hook _TtC20NowPlaying_ModesImpl18FooterElementsUnit
+- (void)viewDidLayoutSubviews { %orig; styleFooter(((UIViewController *)self).viewIfLoaded); }
+%end
+// Free unit inherits UIKit layout; every child remains guarded by its existing identifier.
+%hook _TtC32ReinventFree_ReinventFreeNpvImpl30ReinventFreeFooterElementsUnit
+- (void)viewDidLayoutSubviews { %orig; styleFooter(((UIViewController *)self).viewIfLoaded); }
 %end
 
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC20NowPlaying_ModesImpl18FooterElementsUnit"]);
+    SGRequireClasses(@[@"_TtC20NowPlaying_ModesImpl18FooterElementsUnit",
+        @"_TtC32ReinventFree_ReinventFreeNpvImpl30ReinventFreeFooterElementsUnit"]);
 }

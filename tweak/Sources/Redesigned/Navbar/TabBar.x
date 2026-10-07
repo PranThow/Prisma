@@ -17,8 +17,9 @@
 #import "Headers/SPTEncoreIconView.h"
 #import <objc/message.h>
 
-static char kBarKey, kHostKey;
+static char kBarKey, kHostKey, kMiniPlayerKey;
 static __weak UIView *sg_stockBar;
+static __weak UIView *sg_accessoryHost;
 static CGFloat sg_room, sg_glassHeight;   // see "room for the glass bar"
 
 @interface SGRSystemTabBar : UITabBar <UITabBarDelegate, UIGestureRecognizerDelegate>
@@ -177,6 +178,8 @@ static void forwardTap(UIView *item) {
     }
 }
 
+#import "MiniPlayer.inc"
+
 #pragma mark - the system bar
 
 @implementation SGRSystemTabBar
@@ -185,7 +188,7 @@ static void forwardTap(UIView *item) {
     NSUInteger index = [self.items indexOfObject:item];
     if (index == NSNotFound || index >= self.sources.count) return;
     // Home tapped while on Home pops Spotify's stack, which would take Mod Settings straight off it.
-    if (!self.holding) forwardTap(self.sources[index]);
+    if (!self.holding) { SGRNavbarSelectItem(self.sources[index]); forwardTap(self.sources[index]); }
     // Spotify repaints its labels a moment later; a tap it did not take snaps the selection back.
     UIView *stockBar = self.stockBar;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -248,6 +251,14 @@ static void forwardTap(UIView *item) {
 @end
 
 @implementation SGRTabBarHost
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    if (self.hidden || self.alpha < 0.01 || !self.userInteractionEnabled) return nil;
+    for (UIView *view in self.subviews.reverseObjectEnumerator) {
+        UIView *hit = [view hitTest:[view convertPoint:point fromView:self] withEvent:event];
+        if (hit) return hit;
+    }
+    return nil;
+}
 - (UIEdgeInsets)safeAreaInsets {
     UIEdgeInsets insets = [super safeAreaInsets];
     insets.bottom = MAX(0, insets.bottom - sg_room);
@@ -395,7 +406,8 @@ static void syncBar(UIView *stockBar) {
         missing |= !item.image || !item.selectedImage;
         NSString *title = hideLabels ? nil : labelIn(sources[i]).text;
         if (hideLabels ? item.title != nil : title.length && ![title isEqualToString:item.title]) item.title = title;
-        if (!selected && isActive(sources[i])) selected = item;
+        if (SGRNavbarCustomSelected(sources[i])) selected = item;
+        else if (!selected && isActive(sources[i])) selected = item;
     }
     if (selected && bar.selectedItem != selected) bar.selectedItem = selected;
     // An icon view Spotify has not built yet is looked for again shortly, not on the next touch.
@@ -414,8 +426,40 @@ static void syncBar(UIView *stockBar) {
     if (!CGRectEqualToRect(bar.frame, host.bounds)) bar.frame = host.bounds;
     if (host.superview != stockBar) [stockBar addSubview:host];
     else if (stockBar.subviews.lastObject != host) [stockBar bringSubviewToFront:host];
+    if (integratedPlayerEnabled()) {
+        SGRMiniPlayer *mini = objc_getAssociatedObject(stockBar, &kMiniPlayerKey);
+        if (!mini) {
+            mini = [SGRMiniPlayer new]; mini.bar = bar;
+            objc_setAssociatedObject(stockBar, &kMiniPlayerKey, mini, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            [host addSubview:mini];
+        }
+        CGRect miniFrame = CGRectMake(8, mini.minimized ? 4 : -58, width - 16, 56);
+        UIView *accessoryHost = !mini.minimized && sg_accessoryHost ? sg_accessoryHost : host;
+        if (mini.superview != accessoryHost) [accessoryHost addSubview:mini];
+        mini.frame = [accessoryHost convertRect:miniFrame fromView:host];
+        bar.alpha = mini.minimized ? 0 : 1;
+        bar.userInteractionEnabled = !mini.minimized;
+        sgr_nowPlayingRoot.alpha = 0;
+        sgr_nowPlayingRoot.userInteractionEnabled = NO;
+    }
     logBarOnce(bar);
     makeRoom(containerOf(stockBar));
+}
+
+void SGRSetIntegratedPlayerHost(UIView *host) {
+    if (sg_accessoryHost == host) return;
+    sg_accessoryHost = host;
+    [sg_stockBar setNeedsLayout];
+}
+CGRect SGRIntegratedPlayerFrameIn(UIView *host) {
+    SGRMiniPlayer *mini = objc_getAssociatedObject(sg_stockBar, &kMiniPlayerKey);
+    return mini.window && !mini.hidden && host ? [host convertRect:mini.bounds fromView:mini] : CGRectNull;
+}
+CGRect SGRIntegratedPlayerArtworkFrameIn(UIView *host) {
+    SGRMiniPlayer *mini = objc_getAssociatedObject(sg_stockBar, &kMiniPlayerKey);
+    if (!mini.window || mini.hidden || !host) return CGRectNull;
+    CGRect artwork = CGRectMake(mini.minimized ? 58 : 10, 10, 36, 36);
+    return [host convertRect:artwork fromView:mini];
 }
 
 #pragma mark - hooks
@@ -427,6 +471,15 @@ static UIView *tabBarOf(UIView *item) {
 }
 
 %hook _TtC23NavigationUI_TabBarImpl10TabBarView
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *host = objc_getAssociatedObject(self, &kHostKey);
+    SGRMiniPlayer *mini = objc_getAssociatedObject(self, &kMiniPlayerKey);
+    if (integratedPlayerEnabled() && mini && !mini.hidden && !((UIView *)self).hidden && ((UIView *)self).alpha > 0.01) {
+        UIView *hit = [host hitTest:[host convertPoint:point fromView:(UIView *)self] withEvent:event];
+        if (hit) return hit;
+    }
+    return %orig;
+}
 - (void)layoutSubviews {
     %orig;
     SGRComposeTabBar((UIView *)self);
@@ -440,13 +493,20 @@ static UIView *tabBarOf(UIView *item) {
 %end
 
 // The bar's own pass runs before Spotify has filled the row; the items lay out as they arrive.
+static char kPendingLayoutKey;
 static void itemDidLayOut(UIView *item) {
     UIView *bar = tabBarOf(item);
-    if (!bar) return;
-    SGRComposeTabBar(bar);
-    holdHome(bar);
-    syncBar(bar);
-    SGRLogTabBarRow(bar);
+    if (!bar || [objc_getAssociatedObject(bar, &kPendingLayoutKey) boolValue]) return;
+    objc_setAssociatedObject(bar, &kPendingLayoutKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIView *weakBar = bar;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!weakBar) return;
+        objc_setAssociatedObject(weakBar, &kPendingLayoutKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        SGRComposeTabBar(weakBar);
+        holdHome(weakBar);
+        syncBar(weakBar);
+        SGRLogTabBarRow(weakBar);
+    });
 }
 
 %hook _TtC23NavigationUI_TabBarImpl21TabBarItemElementView
@@ -477,6 +537,22 @@ static void itemDidLayOut(UIView *item) {
 - (void)viewSafeAreaInsetsDidChange {
     %orig;
     makeRoom((UIViewController *)self);
+}
+%end
+
+%hook UIScrollView
+- (void)setContentOffset:(CGPoint)offset {
+    CGPoint previous = ((UIScrollView *)self).contentOffset;
+    %orig;
+    UIScrollView *scroll = (UIScrollView *)self;
+    if (!integratedPlayerEnabled() || !scroll.dragging || scroll.window != sg_stockBar.window || fabs(offset.y - previous.y) < 3) return;
+    SGRMiniPlayer *mini = objc_getAssociatedObject(sg_stockBar, &kMiniPlayerKey);
+    if (!mini || mini.hidden || UIAccessibilityIsVoiceOverRunning()) return;
+    BOOL minimize = offset.y > previous.y && offset.y > -scroll.adjustedContentInset.top + 20;
+    if (minimize == mini.minimized) return;
+    mini.minimized = minimize;
+    [mini setNeedsLayout];
+    [UIView animateWithDuration:UIAccessibilityIsReduceMotionEnabled() ? 0 : 0.25 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ syncBar(sg_stockBar); } completion:nil];
 }
 %end
 

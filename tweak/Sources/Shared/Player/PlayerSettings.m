@@ -2,7 +2,14 @@
 #import "Core/SGCore.h"
 #import "Settings/SGModPage.h"
 #import "PlayerSettings.h"
+#import "SpeedPitch.h"
 #import "Shared/AnimatedArtwork/AnimatedArtworkSettings.h"
+
+SGModRow *SGPitchFollowsSpeedRow(void) {
+    SGModRow *row = SGSwitchRow(@"Pitch follows speed", @"Changing speed also raises or lowers pitch", SGKeyPitchFollowsSpeed);
+    row.changed = ^(BOOL on) { SGSetPlayerPitchFollowsSpeed(on); };
+    return row;
+}
 
 UIViewController *SGLockScreenWidgetPage(void) {
     NSMutableArray<SGModRow *> *artwork = [SGAnimatedArtworkRows() mutableCopy];

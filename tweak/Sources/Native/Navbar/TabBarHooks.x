@@ -42,12 +42,19 @@ static UIView *tabBarOf(UIView *item) {
 %end
 
 // The bar's own pass runs before Spotify has filled the row; the items lay out as they arrive.
+static char kPendingLayoutKey;
 static void itemDidLayOut(UIView *item) {
     UIView *bar = tabBarOf(item);
-    if (!bar) return;
-    SGComposeTabBar(bar);
-    holdHome(bar);
-    SGLogTabBarRow(bar);
+    if (!bar || [objc_getAssociatedObject(bar, &kPendingLayoutKey) boolValue]) return;
+    objc_setAssociatedObject(bar, &kPendingLayoutKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIView *weakBar = bar;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!weakBar) return;
+        objc_setAssociatedObject(weakBar, &kPendingLayoutKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        SGComposeTabBar(weakBar);
+        holdHome(weakBar);
+        SGLogTabBarRow(weakBar);
+    });
 }
 
 %hook _TtC23NavigationUI_TabBarImpl21TabBarItemElementView

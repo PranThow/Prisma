@@ -5,7 +5,7 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
 
 permissions:
   contents: write
@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
+        with:
+          target-branch: ${{ github.ref_name }}
+          config-file: ${{ github.ref_name == 'beta' && 'release-please-beta-config.json' || 'release-please-config.json' }}
 
   deb:
     needs: release-please
@@ -29,6 +32,8 @@ jobs:
       THEOS: ${{ github.workspace }}/theos
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:

@@ -2,6 +2,9 @@
 // screen, laid out with the constraints 9.1.78 makes (see the README for the addresses), under Spotify's
 // class names, with Spotify's message bar (Offline, Private Session) able to come in under the tab bar.
 #import <UIKit/UIKit.h>
+#import <assert.h>
+#import "Native/Navbar/Navbar.h"
+#import "Redesigned/Navbar/Navbar.h"
 
 #pragma mark - Spotify's classes, by the names the hooks look for
 
@@ -386,6 +389,33 @@ static void after(double seconds, dispatch_block_t block) {
     SGHarnessChrome *chrome = [SGHarnessChrome new];
     self.window.rootViewController = chrome;
     [self.window makeKeyAndVisible];
+    SGSetNavbarLayout(@[]); SGRSetNavbarLayout(@[]);
+    NSArray *before = SGNavbarLayout();
+    assert(before == SGNavbarLayout());
+    SGSetNavbarLayout(@[@{SGNavbarID:@"custom", SGNavbarTitle:@"Example", SGNavbarURI:@"spotify:home", SGNavbarIcon:@"sf:house"}]);
+    assert(SGNavbarLayout().count == 1 && SGNavbarLayout() != before);
+    assert(SGRNavbarLayout().count == 0);
+    SGRSetNavbarLayout(@[@{SGRNavbarID:@"redesign", SGRNavbarTitle:@"Other"}]);
+    assert(SGNavbarLayout().count == 1 && SGRNavbarLayout().count == 1);
+    SGSetNavbarLayout(@[]); SGRSetNavbarLayout(@[]);
+    NSLog(@"[harness] navbar cache invalidation and mode isolation checks passed");
+
+    // The accessory's expanded/compact branches retain playback and expose endpoint tabs only compact.
+    UIControl *mini = [NSClassFromString(@"SGRMiniPlayer") new];
+    assert(mini != nil);
+    mini.frame = CGRectMake(0, 0, 360, 56);
+    [mini setValue:@NO forKey:@"minimized"];
+    [mini layoutIfNeeded];
+    NSUInteger shownButtons = 0;
+    for (UIView *view in mini.subviews) if ([view isKindOfClass:UIButton.class] && !view.hidden) shownButtons++;
+    assert(shownButtons == 1);
+    [mini setValue:@YES forKey:@"minimized"];
+    [mini setNeedsLayout]; [mini layoutIfNeeded];
+    shownButtons = 0;
+    for (UIView *view in mini.subviews) if ([view isKindOfClass:UIButton.class] && !view.hidden) shownButtons++;
+    assert(shownButtons == 3);
+    NSLog(@"[harness] mini-player expanded/compact control checks passed");
+
 
     // What happens, from the launch argument: `none` no message bar, `shown` one sliding in at 1.5 s,
     // `away` one there from the start sliding away at 1.5 s, `cycle` in at 1.5 s and out at 4.5 s.

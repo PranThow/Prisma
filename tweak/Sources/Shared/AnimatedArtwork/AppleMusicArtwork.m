@@ -1,5 +1,8 @@
 #import "AppleMusicArtwork.h"
 #import <math.h>
+#import <VideoToolbox/VideoToolbox.h>
+
+BOOL SGAppleArtworkHEVCSupported(void) { return VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC); }
 
 static NSError *artworkError(NSString *message) {
     return [NSError errorWithDomain:@"Prisma.AppleMusicArtwork" code:1
@@ -24,6 +27,27 @@ static NSString *albumBase(NSString *name) {
         range:NSMakeRange(0,name.length) withTemplate:@""];
     return SGAppleArtworkNormalize(base);
 }
+static NSArray *artistCredits(NSString *name) {
+    if (![name isKindOfClass:NSString.class]) return @[];
+    NSRegularExpression *separator = [NSRegularExpression regularExpressionWithPattern:
+        @"(?i)\\s+(?:feat\\.?|ft\\.?|featuring|with|and)\\s+|\\s*[&,]\\s*" options:0 error:nil];
+    NSString *split = [separator stringByReplacingMatchesInString:name options:0 range:NSMakeRange(0, name.length) withTemplate:@"\n"];
+    NSMutableArray *credits = [NSMutableArray new];
+    for (NSString *part in [split componentsSeparatedByString:@"\n"]) {
+        NSString *credit = SGAppleArtworkNormalize(part);
+        if (!credit.length || [credits containsObject:credit]) return @[];
+        [credits addObject:credit];
+    }
+    return [credits sortedArrayUsingSelector:@selector(compare:)];
+}
+BOOL SGAppleArtworkArtistsMatch(NSString *left, NSString *right) {
+    NSString *a = SGAppleArtworkNormalize(left), *b = SGAppleArtworkNormalize(right);
+    if (!a.length || !b.length) return NO;
+    if ([a isEqual:b]) return YES;
+    // Require every explicitly credited artist on both sides, never a lead-artist substring.
+    NSArray *credits = artistCredits(left), *other = artistCredits(right);
+    return credits.count > 1 && [credits isEqual:other];
+}
 NSArray<NSDictionary *> *SGAppleArtworkMatches(id albums, NSString *artist, NSString *album) {
     NSString *who = SGAppleArtworkNormalize(artist), *title = SGAppleArtworkNormalize(album);
     if (!who.length || !title.length) return @[];
@@ -32,7 +56,7 @@ NSArray<NSDictionary *> *SGAppleArtworkMatches(id albums, NSString *artist, NSSt
         if (![row isKindOfClass:NSDictionary.class]) continue;
         id a = row[@"attributes"];
         if (![a isKindOfClass:NSDictionary.class] || ![a[@"name"] isKindOfClass:NSString.class] ||
-            ![SGAppleArtworkNormalize(a[@"artistName"]) isEqual:who]) continue;
+            !SGAppleArtworkArtistsMatch(a[@"artistName"], artist)) continue;
         if ([SGAppleArtworkNormalize(a[@"name"]) isEqual:title]) [exact addObject:row];
         else if ([albumBase(a[@"name"]) isEqual:albumBase(album)]) [editions addObject:row];
     }
@@ -160,8 +184,13 @@ NSURL *SGAppleArtworkPlaylistURL(NSString *playlist, NSURL *base, double ratio, 
                 NSArray *size = [variant[@"RESOLUTION"] componentsSeparatedByString:@"x"];
                 unsigned long long w = 0, h = 0;
                 NSString *codec = variant[@"CODECS"];
+                BOOL avc = [codec hasPrefix:@"avc1."];
+                NSRegularExpression *hevc = [NSRegularExpression regularExpressionWithPattern:
+                    @"^(?:hvc1|hev1)\\.[12]\\.[0-9A-Fa-f]+\\.L[0-9]+(?:\\.[0-9A-Fa-f]+)*$" options:0 error:nil];
+                BOOL supportedCodec = avc || (SGAppleArtworkHEVCSupported() && [codec isKindOfClass:NSString.class] &&
+                    [hevc numberOfMatchesInString:codec options:0 range:NSMakeRange(0, codec.length)] == 1);
                 BOOL supported = size.count == 2 && decimal(size[0],&w) && decimal(size[1],&h) && w && h &&
-                    w <= 1920 && h <= 1920 && [codec hasPrefix:@"avc1."] && ![codec containsString:@","] &&
+                    w <= 1920 && h <= 1920 && supportedCodec && ![codec containsString:@","] &&
                     (!variant[@"VIDEO-RANGE"] || [variant[@"VIDEO-RANGE"] isEqual:@"SDR"]) &&
                     !variant[@"AUDIO"] && !variant[@"VIDEO"] && !variant[@"SUBTITLES"];
                 double shape = supported ? fabs(log(((double)w/h)/ratio)) : HUGE_VAL;
@@ -183,6 +212,6 @@ NSURL *SGAppleArtworkPlaylistURL(NSString *playlist, NSURL *base, double ratio, 
             return fail(@"Unsupported HLS tag");
         }
     }
-    if (master) return !variant && best ? best : fail(@"No supported AVC SDR artwork variant");
+    if (master) return !variant && best ? best : fail(@"No supported SDR artwork variant");
     return ended && segments && !pending && SGAppleArtworkURLValid(resource) ? resource : fail(@"Live or incomplete artwork playlist");
 }

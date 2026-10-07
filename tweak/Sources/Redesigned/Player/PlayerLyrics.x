@@ -29,6 +29,7 @@
 #import "Redesigned/Lyrics/SGRKaraokeView.h"
 #import "Shared/Lyrics/Lyrics.h"
 #import "Player.h"
+#import "SGRPlayerPolicy.h"
 
 static const CGFloat kThumbSide = 72;          // the cover once the lyrics are up
 static const CGFloat kThumbGap = 16;           // between the thumbnail and the title beside it
@@ -52,6 +53,48 @@ static BOOL sg_moving;                      // the transition is in flight, so n
 static __weak UIView *sg_host;              // SPTNowPlayingView
 static __weak UIViewController *sg_info, *sg_duration, *sg_floating;
 static __weak UIView *sg_titleElement;      // the arranged element view holding the title and the artist
+static __weak UIViewController *sg_controller;
+static NSHashTable<UIView *> *sg_controlUnits;
+static BOOL sg_immersive;
+static CFTimeInterval sg_lastTouch;
+static NSTimer *sg_idleTimer;
+static void replace(void);
+static void setOpen(BOOL open, BOOL animated);
+
+static void setImmersive(BOOL immersive) {
+    if (sg_immersive == immersive) return;
+    sg_immersive = immersive;
+    for (UIView *view in sg_controlUnits) {
+        view.userInteractionEnabled = !immersive;
+        view.accessibilityElementsHidden = immersive;
+    }
+    SGRAnimate(SGRMotionLayout, ^{
+        for (UIView *view in sg_controlUnits) view.alpha = immersive ? 0 : 1;
+        replace();
+    }, nil);
+}
+static void touchPlayer(void) { sg_lastTouch = CACurrentMediaTime(); setImmersive(NO); }
+static void checkImmersion(void) {
+    BOOL sheet = NO;
+    for (UIViewController *controller = sg_controller; controller; controller = controller.parentViewController)
+        sheet |= controller.presentedViewController != nil;
+    BOOL eligible = sg_open && sg_host.window && !SGPlayerState().isPaused && SGPlayerState().isPlaying &&
+        UIApplication.sharedApplication.applicationState == UIApplicationStateActive &&
+        !UIAccessibilityIsVoiceOverRunning() && !sheet && !SGRPlayerIsTransitioning();
+    if (!eligible) { touchPlayer(); return; }
+    if (SGRPlayerShouldImmerse(eligible, CACurrentMediaTime(), sg_lastTouch)) setImmersive(YES);
+}
+
+// Recognize the waking touch at its beginning so the same touch cannot activate a lyric or control.
+@interface SGRPlayerWakeGesture : UIGestureRecognizer
+@end
+@implementation SGRPlayerWakeGesture
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    BOOL waking = sg_immersive;
+    touchPlayer();
+    self.state = waking ? UIGestureRecognizerStateRecognized : UIGestureRecognizerStateFailed;
+}
+@end
 
 #pragma mark - the overlay
 
@@ -72,8 +115,12 @@ static __weak UIView *sg_titleElement;      // the arranged element view holding
 
 - (instancetype)initWithFrame:(CGRect)frame {
     if (!(self = [super initWithFrame:frame])) return nil;
-    _thumb = [[UIView alloc] initWithFrame:CGRectZero];
-    _thumb.userInteractionEnabled = NO;
+    _thumb = [UIButton buttonWithType:UIButtonTypeCustom];
+    _thumb.userInteractionEnabled = YES;
+    _thumb.isAccessibilityElement = YES;
+    _thumb.accessibilityLabel = @"Return to artwork";
+    _thumb.accessibilityTraits = UIAccessibilityTraitButton;
+    [(UIButton *)_thumb addTarget:self action:@selector(thumbnailTapped) forControlEvents:UIControlEventTouchUpInside];
     _cover = [[UIImageView alloc] initWithFrame:CGRectZero];
     _cover.contentMode = UIViewContentModeScaleAspectFill;
     _cover.clipsToBounds = YES;
@@ -87,6 +134,7 @@ static __weak UIView *sg_titleElement;      // the arranged element view holding
 }
 
 - (UIView *)thumb { return _thumb; }
+- (void)thumbnailTapped { touchPlayer(); setOpen(NO, YES); }
 - (UIImageView *)cover { return _cover; }
 - (UIView *)stage { return _stage; }
 
@@ -168,6 +216,7 @@ static SGRLyricsLayout layoutIn(UIView *host) {
     l.shift = title ? kThumbSide + kThumbGap : 0;
     CGFloat lines = MAX(CGRectGetMaxY(l.thumb), top + row.size.height) + kLyricsTop;
     l.stage = CGRectMake(CGRectGetMinX(area), lines, area.size.width, CGRectGetMinY(bar) - kLyricsBottom - lines);
+    if (sg_immersive) l.stage.size.height = MAX(l.stage.size.height, host.bounds.size.height - host.safeAreaInsets.bottom - 24 - lines);
     l.ok = l.stage.size.height > kLivingHeight / 2 && l.lift < 0;
     return l;
 }
@@ -301,6 +350,9 @@ static void setOpen(BOOL open, BOOL animated) {
         return;
     }
     sg_open = open;
+    touchPlayer();
+    [sg_idleTimer invalidate]; sg_idleTimer = nil;
+    if (open) sg_idleTimer = [NSTimer scheduledTimerWithTimeInterval:.25 repeats:YES block:^(NSTimer *timer) { checkImmersion(); }];
     SGRPlayerLyricsChanged();
 
     SGRPlayerLyricsOverlay *overlay = overlayIn(host);
@@ -335,6 +387,7 @@ static void setOpen(BOOL open, BOOL animated) {
         sg_moving = NO;
         if (sg_open) return;   // opened again while it was going away
         SGRPlayerCoverList().alpha = 1;
+        SGRPlayerSetCoverHidden(NO);
         [overlay removeFromSuperview];
     };
 
@@ -388,6 +441,11 @@ static void replace(void) {
     if (!host || host.bounds.size.height < kLivingHeight) return;
     if (sg_host != host) {
         sg_host = host;
+        sg_controller = (UIViewController *)self;
+        SGRPlayerWakeGesture *wake = [[SGRPlayerWakeGesture alloc] initWithTarget:nil action:nil];
+        wake.cancelsTouchesInView = YES;
+        wake.delaysTouchesBegan = YES;
+        [host addGestureRecognizer:wake];
         SGLog(@"redesign player: the lyrics have the player's view %.0fx%.0f", host.bounds.size.width, host.bounds.size.height);
     }
     replace();
@@ -400,10 +458,24 @@ static void replace(void) {
 }
 %end
 
-%hook _TtC20NowPlaying_ModesImpl23InformationElementsUnit
-- (void)viewDidLayoutSubviews {
-    %orig;
-    UIViewController *unit = (UIViewController *)self;
+static void registerControls(UIView *view) {
+    if (!view) return;
+    [sg_controlUnits addObject:view];
+    view.alpha = sg_immersive ? 0 : 1;
+    view.userInteractionEnabled = !sg_immersive;
+    view.accessibilityElementsHidden = sg_immersive;
+}
+%hook _TtC20NowPlaying_ModesImpl18HeaderElementsUnit
+- (void)viewDidLayoutSubviews { %orig; registerControls(((UIViewController *)self).viewIfLoaded); }
+%end
+%hook _TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit
+- (void)viewDidLayoutSubviews { %orig; registerControls(((UIViewController *)self).viewIfLoaded); }
+%end
+%hook _TtC20NowPlaying_ModesImpl18FooterElementsUnit
+- (void)viewDidLayoutSubviews { %orig; registerControls(((UIViewController *)self).viewIfLoaded); }
+%end
+
+static void captureInformation(UIViewController *unit) {
     sg_info = unit;
     UIView *host = unit.viewIfLoaded;
     // The title and the artist are two labels of one arranged element view, which is what moves.
@@ -419,12 +491,19 @@ static void replace(void) {
     }
     replace();
 }
+
+%hook _TtC20NowPlaying_ModesImpl23InformationElementsUnit
+- (void)viewDidLayoutSubviews { %orig; captureInformation((UIViewController *)self); }
+%end
+%hook _TtC32ReinventFree_ReinventFreeNpvImpl35ReinventFreeInformationElementsUnit
+- (void)viewDidLayoutSubviews { %orig; captureInformation((UIViewController *)self); }
 %end
 
 %hook _TtC20NowPlaying_ModesImpl19DurationElementUnit
 - (void)viewDidLayoutSubviews {
     %orig;
     sg_duration = (UIViewController *)self;
+    registerControls(sg_duration.viewIfLoaded);
     replace();
 }
 %end
@@ -436,6 +515,25 @@ static void replace(void) {
 - (void)viewDidLayoutSubviews {
     %orig;
     sg_floating = (UIViewController *)self;
+    replace();
+}
+%end
+
+
+%hook _TtC32ReinventFree_ReinventFreeNpvImpl43ReinventFreeNavigationBarUnitViewController
+- (void)viewDidLayoutSubviews { %orig; registerControls(((UIViewController *)self).viewIfLoaded); }
+%end
+%hook _TtC32ReinventFree_ReinventFreeNpvImpl40ReinventFreePlaybackControlsElementsUnit
+- (void)viewDidLayoutSubviews { %orig; registerControls(((UIViewController *)self).viewIfLoaded); }
+%end
+%hook _TtC32ReinventFree_ReinventFreeNpvImpl30ReinventFreeFooterElementsUnit
+- (void)viewDidLayoutSubviews { %orig; registerControls(((UIViewController *)self).viewIfLoaded); }
+%end
+%hook _TtC32ReinventFree_ReinventFreeNpvImpl20DurationElementsUnit
+- (void)viewDidLayoutSubviews {
+    %orig;
+    sg_duration = (UIViewController *)self;
+    registerControls(sg_duration.viewIfLoaded);
     replace();
 }
 %end
@@ -472,6 +570,7 @@ static SGRPlayerLyricsWatcher *sg_watcher;
 
 %ctor {
     if (!SGRedesignedUI()) return;
+    sg_controlUnits = [NSHashTable weakObjectsHashTable];
     %init;
     sg_watcher = [SGRPlayerLyricsWatcher new];
     SGAddPlayerStateObserver(sg_watcher);
@@ -485,5 +584,10 @@ static SGRPlayerLyricsWatcher *sg_watcher;
         @"_TtC20NowPlaying_ModesImpl23InformationElementsUnit",
         @"_TtC20NowPlaying_ModesImpl19DurationElementUnit",
         @"_TtC20NowPlaying_ModesImpl20FloatingElementsUnit",
+        @"_TtC32ReinventFree_ReinventFreeNpvImpl43ReinventFreeNavigationBarUnitViewController",
+        @"_TtC32ReinventFree_ReinventFreeNpvImpl40ReinventFreePlaybackControlsElementsUnit",
+        @"_TtC32ReinventFree_ReinventFreeNpvImpl30ReinventFreeFooterElementsUnit",
+        @"_TtC32ReinventFree_ReinventFreeNpvImpl35ReinventFreeInformationElementsUnit",
+        @"_TtC32ReinventFree_ReinventFreeNpvImpl20DurationElementsUnit",
     ]);
 }

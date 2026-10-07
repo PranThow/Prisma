@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "Prisma",
+      "include-component-in-tag": false,
+      "bump-minor-pre-major": true,
+      "versioning": "prerelease",
+      "prerelease-type": "beta",
+      "prerelease": true,
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Fixes" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "revert", "section": "Reverts" },
+        { "type": "refactor", "section": "Refactors", "hidden": true },
+        { "type": "chore", "section": "Chores", "hidden": true },
+        { "type": "docs", "section": "Docs", "hidden": true }
+      ]
+    }
+  }
+}

@@ -285,7 +285,7 @@ static NSString *pitchText(float pitch) {
     BOOL speedAllowed = SGPlayerSpeedAllowed(), pitchAvailable = SGPlayerPitchAvailable();
     [UIView performWithoutAnimation:^{
         [_speedValue setTitle:speedAllowed ? speedText(_shownSpeed) : @"Unavailable here" forState:UIControlStateNormal];
-        [_pitchValue setTitle:pitchAvailable ? [pitchText(_shownPitch) stringByAppendingString:_shownPitch ? @" st" : @""] : @"Unavailable" forState:UIControlStateNormal];
+        [_pitchValue setTitle:SGPlayerPitchFollowsSpeed() ? @"Follows speed" : pitchAvailable ? [pitchText(_shownPitch) stringByAppendingString:_shownPitch ? @" st" : @""] : @"Unavailable" forState:UIControlStateNormal];
         [_speedValue layoutIfNeeded];
         [_pitchValue layoutIfNeeded];
     }];

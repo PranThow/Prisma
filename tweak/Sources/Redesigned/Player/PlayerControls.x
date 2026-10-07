@@ -19,6 +19,43 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Player.h"
+#import "SGRPlayerPolicy.h"
+#import "Shared/Lyrics/Lyrics.h"
+
+@interface SGRPlayerSeekTap : NSObject <UIGestureRecognizerDelegate>
+@end
+@implementation SGRPlayerSeekTap
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gesture shouldReceiveTouch:(UITouch *)touch {
+    UISlider *slider = (UISlider *)gesture.view;
+    if (!slider.enabled) return NO;
+    CGRect track = [slider trackRectForBounds:slider.bounds];
+    CGRect thumb = [slider thumbRectForBounds:slider.bounds trackRect:track value:slider.value];
+    return !CGRectContainsPoint(CGRectInset(thumb, -4, -8), [touch locationInView:slider]);
+}
+- (void)tapped:(UITapGestureRecognizer *)tap {
+    UISlider *slider = (UISlider *)tap.view;
+    if (tap.state != UIGestureRecognizerStateRecognized || !slider.enabled) return;
+    CGRect track = [slider trackRectForBounds:slider.bounds];
+    double fraction = SGRPlayerTapFraction([tap locationInView:slider].x - track.origin.x, track.size.width,
+        slider.effectiveUserInterfaceLayoutDirection == UIUserInterfaceLayoutDirectionRightToLeft);
+    double duration = SGPlayerState().duration;
+    if (!isfinite(fraction) || !isfinite(duration) || duration <= 0) return;
+    slider.value = slider.minimumValue + fraction * (slider.maximumValue - slider.minimumValue);
+    SGKaraokeSeek((NSInteger)(duration * fraction * 1000));
+}
+@end
+static SGRPlayerSeekTap *sg_seekTap;
+static char kSeekTapKey;
+static void tapSeekIn(UIView *host) {
+    SGForEachView(host, ^(UIView *view) {
+        if (![view isKindOfClass:UISlider.class] || ![view.accessibilityIdentifier isEqual:@"SPTNowPlayingSliderV2"] ||
+            objc_getAssociatedObject(view, &kSeekTapKey)) return;
+        UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:sg_seekTap action:@selector(tapped:)];
+        tap.delegate = sg_seekTap;
+        [view addGestureRecognizer:tap];
+        objc_setAssociatedObject(view, &kSeekTapKey, tap, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    });
+}
 
 static const CGFloat kSkipGlyphSize = 32, kPlayGlyphSize = 44;
 // A spinner that is still up this long after a state change is buffering, not a track starting.
@@ -172,10 +209,7 @@ static void playGlyph(UIView *host) {
     dispatch_once(&once, ^{ SGLog(@"redesign player: play glyph over %@ (disc %@ suppressed), spinner %@", NSStringFromClass(play.class), NSStringFromClass(disc.class), spinnerShowing(button) ? @"showing" : @"hidden"); });
 }
 
-%hook _TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit
-- (void)viewDidLayoutSubviews {
-    %orig;
-    UIView *host = ((UIViewController *)self).viewIfLoaded;
+static void styleControls(UIView *host) {
     if (!host) return;
     // The unit lays out before its row does, and the glyphs are centred on the buttons in it.
     [SGRowIn(host) layoutIfNeeded];
@@ -184,6 +218,14 @@ static void playGlyph(UIView *host) {
     skipGlyph(host, @"SPTNowPlayingNextTrackButton", &kNextKey, @"forward.fill");
     playGlyph(host);
 }
+
+%hook _TtC20NowPlaying_ModesImpl28PlaybackControlsElementsUnit
+- (void)viewDidLayoutSubviews { %orig; styleControls(((UIViewController *)self).viewIfLoaded); }
+%end
+
+// Free units and UIViewController inheritance proven in the locally supplied 9.1.78 binary.
+%hook _TtC32ReinventFree_ReinventFreeNpvImpl40ReinventFreePlaybackControlsElementsUnit
+- (void)viewDidLayoutSubviews { %orig; styleControls(((UIViewController *)self).viewIfLoaded); }
 %end
 
 @interface SGRPlayerControlsWatcher : NSObject <SGPlayerStateObserver>
@@ -228,22 +270,27 @@ static UILabel *monospaced(UIView *host, NSString *identifier, const void *findK
 }
 %end
 
-%hook _TtC20NowPlaying_ModesImpl19DurationElementUnit
-- (void)viewDidLayoutSubviews {
-    %orig;
-    UIView *host = ((UIViewController *)self).viewIfLoaded;
+static void styleDuration(UIView *host) {
     if (!host) return;
     UILabel *taken = monospaced(host, @"now-playing-time-take-label-internal", &kTakeKey);
+    tapSeekIn(host);
     monospaced(host, @"now-playing-time-remaning-label-internal", &kRemainingKey);
     // Whether Spotify's font has digits of one width shows in the descriptor's feature settings.
     if (!taken) return;
     static dispatch_once_t once;
     dispatch_once(&once, ^{ SGLog(@"redesign player: monospaced times in %@ %.0fpt, features %@", taken.font.fontName, taken.font.pointSize, taken.font.fontDescriptor.fontAttributes[UIFontDescriptorFeatureSettingsAttribute]); });
 }
+
+%hook _TtC20NowPlaying_ModesImpl19DurationElementUnit
+- (void)viewDidLayoutSubviews { %orig; styleDuration(((UIViewController *)self).viewIfLoaded); }
+%end
+%hook _TtC32ReinventFree_ReinventFreeNpvImpl20DurationElementsUnit
+- (void)viewDidLayoutSubviews { %orig; styleDuration(((UIViewController *)self).viewIfLoaded); }
 %end
 
 %ctor {
     if (!SGRedesignedUI()) return;
+    sg_seekTap = [SGRPlayerSeekTap new];
     %init;
     sg_controlsWatcher = [SGRPlayerControlsWatcher new];
     SGAddPlayerStateObserver(sg_controlsWatcher);
@@ -252,5 +299,7 @@ static UILabel *monospaced(UIView *host, NSString *identifier, const void *findK
         @"_TtC20NowPlaying_ModesImpl19DurationElementUnit",
         @"_TtC28EncoreConsumerMobile_BaseKit14PlayButtonView",
         @"SPTEncoreIconView",
+        @"_TtC32ReinventFree_ReinventFreeNpvImpl40ReinventFreePlaybackControlsElementsUnit",
+        @"_TtC32ReinventFree_ReinventFreeNpvImpl20DurationElementsUnit",
     ]);
 }

@@ -29,6 +29,9 @@ typedef OSStatus (*SGTimePitchSource)(void *context, UInt32 frames, AudioBufferL
 // frames. With a source it pulls from it, without one it works in place. NULL when the unit could not be
 // made. Not on the render thread.
 SGTimePitch *SGTimePitchCreate(double sampleRate, UInt32 channels, SGTimePitchSource source, void *context);
+SGTimePitch *SGTimePitchCreateVarispeed(double sampleRate, UInt32 channels, SGTimePitchSource source, void *context);
+bool SGTimePitchIsVarispeed(const SGTimePitch *unit);
+void SGTimePitchDestroy(SGTimePitch *unit); // only after its render callback has stopped
 double SGTimePitchSampleRate(const SGTimePitch *unit);
 UInt32 SGTimePitchChannels(const SGTimePitch *unit);
 

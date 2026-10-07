@@ -1,8 +1,8 @@
 // What a redesigned page takes from its artwork, worked out off the main thread in one pass: the
-// colour along the artwork's bottom edge, the field colour made from it, and the blurred bitmaps the
+// colour along the artwork's bottom edge, the field colour made from its dominant colour, and the blurred bitmaps the
 // field (SGRField.h) draws instead of a live blur.
 //
-// The field colour is the edge colour with its saturation held to 0.55 and its relative luminance to
+// The field colour is the dominant colour with its saturation held to 0.55 and its relative luminance to
 // 0.07 (0.04 with Increase Contrast). On anything that dark white text is past 8:1 and SGRSecondary
 // (white 65%) past 4.5:1, WCAG AA, whatever the hue.
 //

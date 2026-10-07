@@ -7,6 +7,11 @@
 #import "Shared/Lyrics/Lyrics.h"
 #import "Shared/LyricsMeanings/Meanings.h"
 #import "Shared/Player/PlayerSettings.h"
+#import "Shared/Player/SpeedPitch.h"
+#import "Shared/Navigation/CastDiscovery.h"
+#import "Shared/Navigation/ConnectDiscovery.h"
+#import "Native/Album/Album.h"
+#import "Redesigned/Album/Album.h"
 #import "Native/Appearance/Appearance.h"
 #import "Native/Navbar/Navbar.h"
 #import "Native/NowPlayingBar/NowPlayingBar.h"
@@ -71,16 +76,23 @@ UIViewController *SGNavbarPage(void) {
 }
 
 // Pronunciation, translation, word sweeping and line meanings exist only in the redesign's lyrics view.
-static UIViewController *lyricsPage(void) {
+UIViewController *SGLyricsSettingsPage(void) {
     BOOL redesigned = SGRedesignedUIStored();
     NSMutableArray<SGModRow *> *more = [NSMutableArray arrayWithObject:SGLockScreenLyricsRow()];
     if (!redesigned) [more insertObject:SGGlassLyricsRow() atIndex:0];
     NSMutableArray<SGModSection *> *sections = [NSMutableArray arrayWithObject:SGLyricsSourcesSection(redesigned)];
-    if (redesigned) {
-        [sections addObject:SGSection(@"Display", @[SGLyricsWordTimingRow(), SGRLyricsTextSizesRow(), SGLyricsTranslationLanguageRow(), SGLyricsMeaningsRow()])];
-    }
     [sections addObject:SGSection(nil, more)];
     return [[SGModPage alloc] initWithTitle:@"Lyrics" intro:SGRestartNote sections:sections footer:nil];
+}
+
+UIViewController *SGKaraokeSettingsPage(void) {
+    return [[SGModPage alloc] initWithTitle:@"Karaoke" intro:SGRestartNote sections:@[
+        SGSection(@"Display", @[SGLyricsWordTimingRow(), SGRLyricsTextSizesRow(), SGLyricsTranslationLanguageRow(), SGLyricsMeaningsRow()]),
+    ] footer:nil];
+}
+
+UIViewController *SGAlbumsSettingsPage(void) {
+    return SGRedesignedUIStored() ? SGRAlbumSettingsPage() : SGAlbumSettingsPage();
 }
 
 UIViewController *SGPlayerSettingsPage(void) {
@@ -92,7 +104,9 @@ UIViewController *SGPlayerSettingsPage(void) {
 
     NSMutableArray<SGModSection *> *sections = [NSMutableArray arrayWithObject:SGSection(nil, @[
         SGWithSymbol(SGPageRow(@"Gestures", ^UIViewController *{ return SGGesturesSettingsPage(); }), @"hand.tap"),
-        SGWithSymbol(SGPageRow(@"Lyrics", ^UIViewController *{ return lyricsPage(); }), @"quote.bubble"),
+        SGPitchFollowsSpeedRow(),
+        SGCastDiscoveryRow(),
+        SGConnectDiscoveryRow(),
         SGWithSymbol(blocked, @"person.crop.circle.badge.xmark"),
     ])];
     NSMutableArray<SGModRow *> *pages = [NSMutableArray array];

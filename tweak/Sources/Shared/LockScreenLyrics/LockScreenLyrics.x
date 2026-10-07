@@ -8,6 +8,7 @@
 #import "Core/SGCore.h"
 #import "LockScreenLyrics.h"
 #import "Shared/Lyrics/Lyrics.h"
+#import "Shared/LyricsSources/LyricsSources.h"
 #import "Headers/SPTPlayer.h"
 
 static const NSTimeInterval kTick = 0.25;
@@ -66,6 +67,8 @@ static NSString *lineFor(NSDictionary *info, double elapsed) {
     // The player's track can lag behind the now playing info; its lyrics would then be another song's.
     if (![state.track.trackTitle isEqualToString:info[MPMediaItemPropertyTitle]]) return nil;
     NSString *trackID = SGKaraokePlayingTrack();
+    // The system's artist field cannot display the API's mandatory contributor links.
+    if (SGLyricsAttributionFor(trackID)) return nil;
     NSArray<SGKaraokeLine *> *lines = SGKaraokeLinesForTrack(trackID);
     if (!lines) {
         SGKaraokeRequestLyrics(trackID);

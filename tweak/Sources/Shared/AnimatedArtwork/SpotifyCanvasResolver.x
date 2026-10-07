@@ -6,6 +6,16 @@
 
 NSString *const SGCanvasResultDidChange = @"SGCanvasResultDidChange";
 static SGCanvasResult *sg_canvas;
+static NSHashTable *sg_consumers;
+static void SGCanvasRefreshConsumers(void);
+void SGCanvasSetConsumerActive(id consumer, BOOL active) {
+    NSCAssert(NSThread.isMainThread, @"Canvas consumers run on the main queue");
+    if (!consumer) return;
+    if (!sg_consumers) sg_consumers = [NSHashTable weakObjectsHashTable];
+    if (active) [sg_consumers addObject:consumer];
+    else [sg_consumers removeObject:consumer];
+    SGCanvasRefreshConsumers();
+}
 SGCanvasResult *SGCanvasCurrentResult(void) { return sg_canvas; }
 
 @interface SGCanvasResolver : NSObject <SGPlayerStateObserver, NSURLSessionTaskDelegate>
@@ -38,7 +48,8 @@ SGCanvasResult *SGCanvasCurrentResult(void) { return sg_canvas; }
         supported = SGAnimatedArtworkPreferredKey(MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys,
             MPNowPlayingInfoProperty3x4AnimatedArtwork, MPNowPlayingInfoProperty1x1AnimatedArtwork) != nil;
     }
-    if (!supported || !SGAnimatedArtworkEnabled() || ![SGAnimatedArtworkOrder() containsObject:@"spotify"]) {
+    BOOL lockScreen = supported && SGAnimatedArtworkEnabled() && [SGAnimatedArtworkOrder() containsObject:@"spotify"];
+    if (!lockScreen && !sg_consumers.count) {
         self.generation++;
         [self.task cancel]; self.task = nil;
         self.trackURI = nil; self.attemptedHeaders = nil;
@@ -80,6 +91,7 @@ SGCanvasResult *SGCanvasCurrentResult(void) { return sg_canvas; }
         config.HTTPCookieStorage = nil;
         config.URLCredentialStorage = nil;
         config.URLCache = nil;
+        config.allowsConstrainedNetworkAccess = NO;
         self.session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
     }
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
@@ -128,6 +140,7 @@ SGCanvasResult *SGCanvasCurrentResult(void) { return sg_canvas; }
 @end
 
 static SGCanvasResolver *sg_resolver;
+static void SGCanvasRefreshConsumers(void) { [sg_resolver resolve:SGPlayerState()]; }
 %ctor {
     dispatch_async(dispatch_get_main_queue(), ^{
         sg_resolver = [SGCanvasResolver new];

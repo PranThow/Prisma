@@ -21,6 +21,7 @@
 #import "Shared/Flags/Flags.h"
 #import "Shared/AudioEffects/AudioEffectsPage.h"
 #import "Shared/LiveActivity/LiveActivity.h"
+#import "Shared/LyricsSources/LyricsSources.h"
 #import "App/About/About.h"
 #import "Pages.h"
 
@@ -39,6 +40,17 @@ static UIViewController *modSettingsPage(void) {
     // that no switch can put right, and it is worth reading before anything else.
     SGModRow *signing = SGSigningWarningRow();
     if (signing) [sections addObject:SGSection(nil, @[signing])];
+    NSString *spotify = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+    if (![spotify isEqualToString:@"9.1.78"]) {
+        [sections addObject:SGNotedSection(@"Compatibility", @[
+            SGStatRow(@"Spotify", ^NSString *{ return spotify ?: @"Unknown version"; }),
+        ], @"Prisma targets Spotify 9.1.78. Other versions can change the screens and playback interfaces Prisma uses.")];
+    }
+    if (SGFlag(SGKeyExternalLyricsReplacement, NO)) {
+        [sections addObject:SGNotedSection(@"Lyrics compatibility", @[
+            SGStatRow(@"External lyrics replacement", ^NSString *{ return @"On"; }),
+        ], @"Prisma's source hooks and forced lyrics flags are disabled. Turn this off in Lyrics only after disabling the other tweak's replacement, then restart Spotify.")];
+    }
     SGModRow *mod = pageRow(@"Mod", @"info.circle", ^UIViewController *{ return SGAboutPage(); });
     mod.value = ^NSString *{ return @(SG_VERSION); };
     // The audio effects work on the sound, so both looks have them, with what they are doing beside the chevron.
@@ -49,8 +61,11 @@ static UIViewController *modSettingsPage(void) {
     NSMutableArray<SGModRow *> *parts = [NSMutableArray arrayWithArray:@[
         pageRow(@"Navbar", @"dock.rectangle", ^UIViewController *{ return SGNavbarPage(); }),
         pageRow(@"Player", @"play.circle", ^UIViewController *{ return SGPlayerSettingsPage(); }),
+        pageRow(@"Lyrics", @"quote.bubble", ^UIViewController *{ return SGLyricsSettingsPage(); }),
+        pageRow(@"Albums", @"square.stack", ^UIViewController *{ return SGAlbumsSettingsPage(); }),
         audioEffects,
     ]];
+    if (SGRedesignedUIStored()) [parts insertObject:pageRow(@"Karaoke", @"music.mic", ^UIViewController *{ return SGKaraokeSettingsPage(); }) atIndex:3];
     if (@available(iOS 17.0, *)) {
         SGModRow *liveActivity = pageRow(@"Live Activity", @"platter.filled.top.iphone", ^UIViewController *{ return SGLiveActivitySettingsPage(); });
         liveActivity.value = ^NSString *{ return SGLiveActivitySummary(); };
@@ -91,6 +106,9 @@ static UIViewController *modSettingsPage(void) {
     _icon = SGSymbolView(@"slider.horizontal.3", 20, UIImageSymbolWeightRegular, 24);
     _title = [UILabel new];
     _title.text = @"Mod Settings";
+    self.isAccessibilityElement = YES;
+    self.accessibilityLabel = @"Mod Settings";
+    self.accessibilityTraits = UIAccessibilityTraitButton;
     _title.textColor = UIColor.whiteColor;
     _chevron = SGSymbolView(@"chevron.right", 11, UIImageSymbolWeightSemibold, 12);
     for (UIView *v in @[_icon, _title, _chevron]) [self addSubview:v];
@@ -208,10 +226,12 @@ static BOOL isSettingsRoot(UIViewController *list) {
             objc_setAssociatedObject(sub, &kRowKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             continue;
         }
-        if (row) continue;
-        row = [[SGModSettingsRow alloc] initWithFrame:CGRectZero];
-        objc_setAssociatedObject(sub, &kRowKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [sub addSubview:row];
+        if (!row) {
+            row = [[SGModSettingsRow alloc] initWithFrame:CGRectZero];
+            objc_setAssociatedObject(sub, &kRowKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        if (row.superview != sub) [sub addSubview:row];
+        placeRow((UICollectionView *)sub, row);
     }
 }
 %end
@@ -223,11 +243,14 @@ static BOOL isSettingsRoot(UIViewController *list) {
     %orig;
     SGForEachView(((UIViewController *)self).view, ^(UIView *v) {
         if (![v isKindOfClass:UICollectionView.class] || ![NSStringFromClass(v.class) containsString:@"SideDrawerListCollectionView"]) return;
-        if (objc_getAssociatedObject(v, &kRowKey)) return;
-        SGModSettingsRow *row = [[SGModSettingsRow alloc] initWithFrame:CGRectZero];
-        row.drawer = YES;
-        objc_setAssociatedObject(v, &kRowKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [v addSubview:row];
+        SGModSettingsRow *row = objc_getAssociatedObject(v, &kRowKey);
+        if (!row) {
+            row = [[SGModSettingsRow alloc] initWithFrame:CGRectZero];
+            row.drawer = YES;
+            objc_setAssociatedObject(v, &kRowKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        if (row.superview != v) [v addSubview:row];
+        placeRow((UICollectionView *)v, row);
     });
 }
 %end

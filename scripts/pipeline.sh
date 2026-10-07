@@ -107,9 +107,15 @@ xcrun --sdk iphoneos clang -target arm64-apple-ios16.0 -dynamiclib -fobjc-arc -O
   -install_name @rpath/SpotifyGlassAppGroups.dylib -o "$GROUPS_DYLIB" "$ROOT/extension/AppGroups/AppGroups.m"
 FILES+=("$GROUPS_DYLIB")
 
+echo "==> merging Prisma icons and local-network declarations"
+INPUT_STAGE="$(mktemp -d "$ROOT/out/metadata.XXXXXX")"
+trap 'rm -rf "$INPUT_STAGE"' EXIT
+python3 "$ROOT/scripts/package-metadata.py" "$IN" --output "$INPUT_STAGE/input.ipa"
 echo "==> injecting"
 # -w drops the Watch app: its companion-app key would still name com.spotify.client and block the install.
-cyan -i "$IN" -o "$OUT" -f "${FILES[@]}" -l "$ROOT/plist/liquid-glass.plist" ${BUNDLE_ID:+-b "$BUNDLE_ID"} ${NAME:+-n "$NAME"} ${ICON:+-k "$ICON"} -w -s --overwrite
+cyan -i "$INPUT_STAGE/input.ipa" -o "$OUT" -f "${FILES[@]}" -l "$ROOT/plist/liquid-glass.plist" ${BUNDLE_ID:+-b "$BUNDLE_ID"} ${NAME:+-n "$NAME"} ${ICON:+-k "$ICON"} -w -s --overwrite
+rm -rf "$INPUT_STAGE"
+trap - EXIT
 
 echo "==> loading the App Group shim in the home screen widget"
 WIDGET_BIN="${APP_DIR}PlugIns/WidgetExtension.appex/WidgetExtension"

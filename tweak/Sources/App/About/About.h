@@ -5,6 +5,7 @@
 // always asks.
 #import <UIKit/UIKit.h>
 #import "Settings/SGModPage.h"
+SGModRow *SGAppIconRow(void);
 
 extern NSString *const SGUpdateCheckedNotification;   // on the main thread, after a check ends either way
 

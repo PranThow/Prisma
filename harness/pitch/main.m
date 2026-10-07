@@ -8,6 +8,7 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <mach/mach_time.h>
 #import "Shared/Player/SGTimePitch.h"
+#import <assert.h>
 
 static const double kRate = 44100;
 
@@ -109,46 +110,77 @@ static void runSong(NSString *path, float semitones, NSString *outPath) {
     printf("wrote %s (%+.0f st), underruns %u\n", outPath.UTF8String, semitones, SGTimePitchUnderruns(shifter));
 }
 
-typedef struct { double phase; } Sine;
+typedef struct { double phase, sampleRate; } Sine;
 
 static OSStatus sineSource(void *context, UInt32 frames, AudioBufferList *data) {
     Sine *sine = context;
     for (UInt32 i = 0; i < frames; i++) {
-        float value = 0.5f * sinf(2 * M_PI * 440 * (sine->phase + i) / kRate);
+        float value = 0.5f * sinf(2 * M_PI * 440 * (sine->phase + i) / sine->sampleRate);
         for (UInt32 c = 0; c < data->mNumberBuffers; c++) ((float *)data->mBuffers[c].mData)[i] = value;
     }
     sine->phase += frames;
     return noErr;
 }
 
-static void runPull(float rate, float semitones) {
-    Sine sine = {0};
-    SGTimePitch *unit = SGTimePitchCreate(kRate, 2, sineSource, &sine);
+static void runPull(float rate, float semitones, double sampleRate, BOOL coupled) {
+    Sine sine = {.sampleRate = sampleRate};
+    SGTimePitch *unit = coupled ? SGTimePitchCreateVarispeed(sampleRate, 2, sineSource, &sine) : SGTimePitchCreate(sampleRate, 2, sineSource, &sine);
+    assert(unit && SGTimePitchIsVarispeed(unit) == coupled);
     SGTimePitchSetRate(unit, rate);
     SGTimePitchSetSemitones(unit, semitones);
-    size_t total = (size_t)(kRate * 4);
+    size_t total = (size_t)(sampleRate * 4);
     float *left = calloc(total, sizeof(float)), *right = calloc(total, sizeof(float));
     for (size_t done = 0; done < total; done += 1024) {
-        struct { AudioBufferList list; AudioBuffer second; } buffers = {{2, {{1, 4096, left + done}}}, {1, 4096, right + done}};
-        if (SGTimePitchRender(unit, 1024, &buffers.list) != noErr) printf("  render failed\n");
+        UInt32 count = (UInt32)MIN(1024, total - done);
+        struct { AudioBufferList list; AudioBuffer second; } buffers = {{2, {{1, count * 4, left + done}}}, {1, count * 4, right + done}};
+        assert(SGTimePitchRender(unit, count, &buffers.list) == noErr);
     }
-    double measured = frequency(left + (size_t)kRate, total - (size_t)kRate);
-    double expected = 440 * pow(2, semitones / 12);
+    double measured = frequency(left + (size_t)sampleRate, total - (size_t)sampleRate) * sampleRate / kRate;
+    double expected = coupled ? 440 * rate : 440 * pow(2, semitones / 12);
     double consumedRate = (double)SGTimePitchConsumed(unit) / total;
+    assert(fabs(measured / expected - 1) < 0.01);
+    assert(fabs(consumedRate - rate) < 0.1);
     printf("pull rate %.2f %+3.0f st: %6.1f Hz (want %6.1f, %+.2f%%), consumed %.3fx, largest pull %u, failures %u\n", rate, semitones,
            measured, expected, (measured / expected - 1) * 100, consumedRate, SGTimePitchLargestPull(unit), SGTimePitchFailures(unit));
     free(left);
     free(right);
+    SGTimePitchDestroy(unit);
+}
+
+static void interleavedOutputs(void) {
+    Sine a = {.sampleRate = 44100}, b = {.sampleRate = 48000};
+    SGTimePitch *first = SGTimePitchCreateVarispeed(a.sampleRate, 2, sineSource, &a);
+    SGTimePitch *second = SGTimePitchCreateVarispeed(b.sampleRate, 2, sineSource, &b);
+    assert(first && second);
+    SGTimePitchSetRate(first, 1.5); SGTimePitchSetRate(second, 0.75);
+    float left[1024], right[1024];
+    for (unsigned i = 0; i < 180; i++) {
+        struct { AudioBufferList list; AudioBuffer extra; } data = {{2, {{1, sizeof left, left}}}, {1, sizeof right, right}};
+        double previous = b.phase;
+        assert(SGTimePitchRender(first, 1024, &data.list) == noErr && b.phase == previous);
+        previous = a.phase;
+        assert(SGTimePitchRender(second, 1024, &data.list) == noErr && a.phase == previous);
+    }
+    assert(fabs(a.phase / (180 * 1024) - 1.5) < 0.1);
+    assert(fabs(b.phase / (180 * 1024) - 0.75) < 0.1);
+    double secondPosition = b.phase;
+    SGTimePitchReset(first);
+    assert(b.phase == secondPosition);
+    SGTimePitchDestroy(first); SGTimePitchDestroy(second);
 }
 
 int main(int argc, const char **argv) {
     @autoreleasepool {
+        interleavedOutputs();
         for (int pattern = 0; pattern < 3; pattern++) {
             for (NSNumber *semitones in @[@-12, @-5, @-1, @0.5, @3, @7, @12]) runSine(semitones.floatValue, pattern);
         }
         for (NSNumber *rate in @[@0.5, @0.75, @1, @1.25, @1.5, @2]) {
-            runPull(rate.floatValue, 0);
-            runPull(rate.floatValue, 3);
+            for (NSNumber *sampleRate in @[@44100, @48000]) {
+                runPull(rate.floatValue, 0, sampleRate.doubleValue, NO);
+                runPull(rate.floatValue, 3, sampleRate.doubleValue, NO);
+                runPull(rate.floatValue, 0, sampleRate.doubleValue, YES);
+            }
         }
         if (argc > 1) {
             NSString *song = @(argv[1]);

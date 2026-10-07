@@ -8,6 +8,8 @@
 
 // Main queue only. Nil until resolved or when the track has no usable Canvas.
 SGCanvasResult *SGCanvasCurrentResult(void);
+// Independent in-app consumers opt in while visible; no UI-layer preferences enter Shared.
+void SGCanvasSetConsumerActive(id consumer, BOOL active);
 // Posted on the main queue when a result arrives or is cleared on a track change.
 extern NSString *const SGCanvasResultDidChange;
 

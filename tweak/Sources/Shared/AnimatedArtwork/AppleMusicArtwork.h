@@ -15,6 +15,8 @@
 
 // Foundation-only functions exercised by harness/apple-music-artwork.
 NSString *SGAppleArtworkNormalize(id name);
+BOOL SGAppleArtworkArtistsMatch(NSString *left, NSString *right);
+BOOL SGAppleArtworkHEVCSupported(void);
 NSArray<NSDictionary *> *SGAppleArtworkMatches(id albums, NSString *artist, NSString *album);
 NSURL *SGAppleArtworkMotionURL(id attributes, double ratio);
 BOOL SGAppleArtworkURLValid(NSURL *url);

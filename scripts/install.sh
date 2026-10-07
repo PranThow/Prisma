@@ -17,6 +17,11 @@ cd "$ROOT"
 
 IN="${1:?usage: $0 <ipa>}"
 SIGNED="${IN%.ipa}-signed.ipa"
+PACKAGED="$(mktemp -d)"
+trap 'rm -rf "$PACKAGED"' EXIT
+# Preserve the caller's IPA; merge declarations/assets before zsign creates fresh signatures.
+python3 "$ROOT/scripts/package-metadata.py" "$IN" --output "$PACKAGED/input.ipa"
+IN="$PACKAGED/input.ipa"
 
 command -v zsign >/dev/null || { echo "missing zsign -> brew install zsign" >&2; exit 1; }
 command -v ideviceinstaller >/dev/null || { echo "missing ideviceinstaller -> brew install ideviceinstaller" >&2; exit 1; }

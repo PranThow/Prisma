@@ -8,12 +8,14 @@
 // directly to Prisma's GitHub Releases without sending install or usage data.
 #import "Core/SGCore.h"
 #import "About.h"
+#import "SGVersion.h"
 
 static NSString *const kGitHubURL = @"https://api.github.com/repos/PranThow/Prisma/releases?per_page=20";
 NSString *const SGUpdateCheckedNotification = @"spotifyglass.update.checked.notification";
 
 static NSString *const kChecked = @"spotifyglass.update.prisma.checked";
 static NSString *const kReleases = @"spotifyglass.update.prisma.releases";
+static NSString *const kChannel = @"spotifyglass.update.prisma.beta";
 static const NSTimeInterval kInterval = 6 * 60 * 60;
 
 static NSString *sg_failure;
@@ -25,20 +27,16 @@ static BOOL sg_running;
 @implementation SGUpdateRelease
 @end
 
-// "0.14.1" against "0.15": the numbers position by position, a missing one counting zero.
 static BOOL isNewer(NSString *candidate, NSString *current) {
-    NSArray<NSString *> *left = [candidate componentsSeparatedByString:@"."];
-    NSArray<NSString *> *right = [current componentsSeparatedByString:@"."];
-    for (NSUInteger i = 0; i < MAX(left.count, right.count); i++) {
-        NSInteger a = i < left.count ? left[i].integerValue : 0;
-        NSInteger b = i < right.count ? right[i].integerValue : 0;
-        if (a != b) return a > b;
-    }
-    return NO;
+    return SGVersionCompare(candidate, current) == NSOrderedDescending;
 }
 
 static NSString *stringOr(id value, NSString *fallback) {
     return [value isKindOfClass:NSString.class] ? value : fallback;
+}
+
+static BOOL booleanOrNo(id value) {
+    return [value isKindOfClass:NSNumber.class] && [value boolValue];
 }
 
 #pragma mark - the changelog out of the release's markdown
@@ -115,7 +113,8 @@ NSArray<SGUpdateRelease *> *SGUpdateReleases(void) {
     for (id entry in stored) {
         if (![entry isKindOfClass:NSDictionary.class]) continue;
         NSString *version = stringOr(entry[@"version"], nil);
-        if (!version.length) continue;
+        if (entry[@"prerelease"] && ![entry[@"prerelease"] isKindOfClass:NSNumber.class]) continue;
+        if (!SGVersionAllowed(version, booleanOrNo(entry[@"prerelease"]), @(SG_VERSION))) continue;
         SGUpdateRelease *release = [SGUpdateRelease new];
         release.version = version;
         release.date = stringOr(entry[@"date"], @"");
@@ -123,6 +122,9 @@ NSArray<SGUpdateRelease *> *SGUpdateReleases(void) {
         release.changes = changesIn(stringOr(entry[@"notes"], @""));
         [releases addObject:release];
     }
+    [releases sortUsingComparator:^NSComparisonResult(SGUpdateRelease *a, SGUpdateRelease *b) {
+        return SGVersionCompare(b.version, a.version);
+    }];
     return releases;
 }
 
@@ -152,9 +154,7 @@ NSString *SGUpdateStatus(void) {
 
 #pragma mark - the check
 
-// Drafts and pre-releases are not builds anyone is meant to be sent to, so they count for neither the
-// newest version nor the changelog. GitHub answers newest first; the sort keeps that true whatever
-// order a hand-made release lands in.
+// Cache both channels. Filter again when reading so a stable build cannot inherit a beta update.
 static NSArray<NSDictionary *> *releasesFrom(NSData *data) {
     id json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
     if (![json isKindOfClass:NSArray.class]) return nil;
@@ -162,20 +162,24 @@ static NSArray<NSDictionary *> *releasesFrom(NSData *data) {
     for (id item in (NSArray *)json) {
         if (![item isKindOfClass:NSDictionary.class]) continue;
         NSDictionary *release = item;
-        if ([release[@"draft"] boolValue] || [release[@"prerelease"] boolValue]) continue;
+        if (![release[@"draft"] isKindOfClass:NSNumber.class] ||
+            ![release[@"prerelease"] isKindOfClass:NSNumber.class] || booleanOrNo(release[@"draft"])) continue;
         NSString *tag = stringOr(release[@"tag_name"], nil);
         if (!tag.length) continue;
+        NSString *version = [tag hasPrefix:@"v"] ? [tag substringFromIndex:1] : tag;
+        if (!SGVersionParts(version)) continue;
         [entries addObject:@{
-            @"version": [tag hasPrefix:@"v"] ? [tag substringFromIndex:1] : tag,
+            @"version": version,
+            @"prerelease": @(booleanOrNo(release[@"prerelease"])),
             @"notes": stringOr(release[@"body"], @""),
             @"date": stringOr(release[@"published_at"], @""),
             @"url": stringOr(release[@"html_url"], @""),
         }];
     }
     [entries sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
-        return isNewer(a[@"version"], b[@"version"]) ? NSOrderedAscending : NSOrderedDescending;
+        return SGVersionCompare(b[@"version"], a[@"version"]);
     }];
-    return entries.count ? entries : nil;
+    return entries;
 }
 
 static void ask(NSString *url, void (^done)(NSArray<NSDictionary *> *releases, NSInteger status, NSError *error)) {
@@ -198,7 +202,9 @@ void SGCheckForUpdate(BOOL force) {
     NSUserDefaults *store = NSUserDefaults.standardUserDefaults;
     NSTimeInterval last = [store doubleForKey:kChecked];
     if (sg_running) return;
-    if (!force && last > 0 && NSDate.date.timeIntervalSince1970 - last < kInterval) return;
+    BOOL beta = SGVersionPrerelease(@(SG_VERSION));
+    if (!force && [store objectForKey:kChannel] && [store boolForKey:kChannel] == beta &&
+        last > 0 && NSDate.date.timeIntervalSince1970 - last < kInterval) return;
 
     sg_running = YES;
     sg_failure = nil;
@@ -213,8 +219,9 @@ void SGCheckForUpdate(BOOL force) {
                       error.localizedDescription ?: @"no release in the reply");
             } else {
                 [store setObject:releases forKey:kReleases];
+                [store setBool:beta forKey:kChannel];
                 [store setDouble:NSDate.date.timeIntervalSince1970 forKey:kChecked];
-                SGLog(@"update check: the newest is %@, this build is %s", releases.firstObject[@"version"], SG_VERSION);
+                SGLog(@"update check: the newest eligible release is %@, this build is %s", SGUpdateNewestRelease().version ?: @"none", SG_VERSION);
             }
             [NSNotificationCenter.defaultCenter postNotificationName:SGUpdateCheckedNotification object:nil];
         });

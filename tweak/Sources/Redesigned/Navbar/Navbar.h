@@ -6,6 +6,7 @@
 
 #define SGRKeyNavbar @"spotifyglass.redesign.navbar"
 // Icons only on the glass bar. Off unless set; applies as soon as the bar lays out again.
+#define SGRKeyIntegratedPlayer @"spotifyglass.redesign.navbar.integratedPlayer"
 #define SGRKeyNavbarHideLabels @"spotifyglass.redesign.navbar.hideLabels"
 
 extern NSString *const SGRNavbarID;      // NSString, the entry's identity
@@ -31,3 +32,11 @@ void SGRRefreshTabBar(void);
 
 UIViewController *SGRNavbarSettingsPage(void);   // the tab editor, in Mod Settings
 UIViewController *SGRNavbarEditorPage(void);     // the tab editor alone, for the welcome tour
+
+BOOL SGRNavbarCustomSelected(UIView *item);
+void SGRNavbarSelectItem(UIView *item);
+
+CGRect SGRIntegratedPlayerFrameIn(UIView *host);
+CGRect SGRIntegratedPlayerArtworkFrameIn(UIView *host);
+
+void SGRSetIntegratedPlayerHost(UIView *host);

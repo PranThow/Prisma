@@ -52,6 +52,8 @@ static NSDictionary *SGSpotifyHeadersForURL(NSURL *url) {
 }
 @end
 #include "resolver.inc"
+static SGCanvasResolver *consumerResolver;
+static void SGCanvasRefreshConsumers(void) { [consumerResolver resolve:state]; }
 
 static void respond(CanvasSession *session, NSInteger status, NSError *error) {
     NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:session.request.URL
@@ -65,6 +67,7 @@ int main(void) { @autoreleasepool {
     state.track.URI = @"spotify:track:0123456789012345678901";
     NSDictionary *metadata = @{@"canvas.url":@"https://canvaz.scdn.co/fixture.mp4"};
     SGCanvasResolver *resolver = [SGCanvasResolver new];
+    consumerResolver = resolver;
     for (NSUInteger mode = 0; mode < 4; mode++) {
         supported = mode == 2 ? @[] : mode == 3 ? @[@"unknown"] : @[@"tall"];
         NSArray *order = mode == 1 ? @[@"appleMusic"] : @[@"spotify"];
@@ -109,6 +112,16 @@ int main(void) { @autoreleasepool {
     state.track.metadata = metadata; [resolver resolve:state];
     respond(session,500,nil);
     assert(SGCanvasCurrentResult().videoURL && !resolver.task);
+    [NSUserDefaults.standardUserDefaults removeVolatileDomainForName:NSArgumentDomain];
+    // A visible in-app consumer works independently of lock-screen availability and preferences.
+    supported = @[];
+    [NSUserDefaults.standardUserDefaults setVolatileDomain:@{SGKeyAnimatedArtwork:@NO,
+        SGKeyAnimatedArtworkProviders:@[]} forName:NSArgumentDomain];
+    NSObject *consumer = [NSObject new];
+    SGCanvasSetConsumerActive(consumer, YES);
+    assert([SGCanvasCurrentResult().trackURI isEqual:state.track.URI]);
+    SGCanvasSetConsumerActive(consumer, NO);
+    assert(!SGCanvasCurrentResult() && !resolver.task);
     [NSUserDefaults.standardUserDefaults removeVolatileDomainForName:NSArgumentDomain];
     puts("Canvas resolver: disablement, cancellation, unsupported keys and re-enable passed");
 } return 0; }

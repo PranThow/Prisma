@@ -1,166 +1,86 @@
-// Speed and Pitch (SpeedPitchMenu.x draws them), both done on Spotify's audio, under either look.
-//
-// Spotify's player takes a speed only for podcasts: for songs its restrictions refuse it (device test,
-// 2026-09-18: the slider read "Unavailable here"), its own music speed being a per track setting kept on
-// playlist items. So speed, like pitch, is done to the sound, by SGTimePitch between Spotify's mixer and
-// its speaker unit.
-//
-// Spotify's audio (AudioUnitDriver2 in the binary) is a chain of units it wires with MakeConnection:
-// converter (fed by its decoder through a render callback), EQ, mixer, RemoteIO. Its import of
-// AudioUnitSetProperty is rebound (Core/SGRebind.h), and the one call connecting the mixer to the RemoteIO
-// unit's input is answered by a render callback of this file's instead, which pulls the mixer itself. At
-// normal speed and pitch the callback passes the mixer's sound straight through. Otherwise it renders the
-// time and pitch unit, which pulls the mixer for rate times the frames it hands back, so Spotify's decoder
-// is drained that much faster: the song plays faster or slower, at its own pitch unless Pitch moves it.
-// Switching the unit in or out skips or repeats its 93 ms, so it stays in for a moment after both return
-// to normal, and a finger dragging across normal does not switch it back and forth.
-//
-// Spotify's clock keeps running at its own speed between the player's reports: -[SPTPlayerState position]
-// is positionAsOfTimestamp minus timeIntervalSinceNow times [self playbackSpeed] (disassembly,
-// 0x1057735ec), so playbackSpeed is hooked to include this speed, and the scrubber, the lyrics and the lock
-// screen move with the sound. That bets the player's reported positions follow what the decoder handed
-// over, which is what it counts.
-//
-// When the connection is never seen, pitch falls back to the way it first shipped: a render notify on the
-// RemoteIO unit (after Music Haptics' own rebinding of AudioOutputUnitStart) runs each finished buffer
-// through a unit working in place; speed is then unavailable. Those buffers are in the unit's output format,
-// the hardware's, not the one Spotify hands the unit (harness/audio-effects/sim), so the fallback's unit is made
-// for that one.
-//
-// Speed and pitch last until Spotify quits.
-//
-// Threading: the render callback and the notify run on the render thread and touch only atomics and the
-// units; Spotify sets its properties and starts its unit on its audio thread; everything else is main
-// thread.
+// One source clock and processing units per RemoteIO output. The owner orders post-render stages.
 #import <AudioToolbox/AudioToolbox.h>
 #import <pthread.h>
 #import <stdatomic.h>
 #import "Core/SGCore.h"
-#import "Core/SGRebind.h"
+#import "Core/SGAudioRouting.h"
 #import "Headers/SPTPlayer.h"
 #import "SpeedPitch.h"
 #import "SGTimePitch.h"
 
-// The unit stays in this long after speed and pitch both came back to normal.
-static const double kOffAfter = 1.5;
-
-#pragma mark - shared between the threads
-
-static float sg_speed = 1, sg_semitones;     // main thread
-static atomic_uint sg_speedBits;             // sg_speed for SPTPlayerState, read on any thread
-
-// The chain as Spotify wired it: the unit and bus feeding its RemoteIO unit (NULL until the
-// connection was taken over), pulled in chunks no larger than Spotify's own maximum slice.
-static _Atomic(AudioUnit) sg_source;
-static UInt32 sg_sourceBus;
-static atomic_uint sg_chunk = 1024;
-static Float64 sg_sourceTime;                // render thread only
-
-// The unit in use and whether the render thread runs it: in the chain (pull), else in place (pitch only).
-static _Atomic(SGTimePitch *) sg_pull, sg_inPlace;
-static atomic_bool sg_engaged, sg_busy;
-static pthread_mutex_t sg_buildLock = PTHREAD_MUTEX_INITIALIZER;
-
-// The formats when Spotify started its output: the one it hands the RemoteIO unit, which the chain's unit
-// feeds, and the unit's output side, the hardware's, which the in place fallback's notify gets.
 typedef struct {
-    atomic_uint_fast64_t rateBits;
-    atomic_uint flags, channels, bytes;
-} Format;
-static Format sg_client, sg_hardware;
+    AudioUnit output, source;
+    UInt32 bus, chunk;
+    Float64 time;
+    AudioStreamBasicDescription client, hardware;
+    SGTimePitch *pull, *inPlace;
+    BOOL engaged;
+    float scratch[kSGTimePitchMaxChannels][kSGTimePitchMaxFrames];
+} Source;
+static Source sources[16];
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t sourceLocks[16];
+static float speed = 1, semitones;
+static BOOL coupled = YES, available;
+static atomic_uint speedBits;
+static NSUInteger change;
 
-static BOOL tapped(void) {
-    return atomic_load(&sg_source) != NULL;
+static Source *find(AudioUnit output, BOOL create) {
+    Source *empty = NULL;
+    for (unsigned i = 0; i < 16; i++) {
+        if (sources[i].output == output) return &sources[i];
+        if (!sources[i].output && !empty) empty = &sources[i];
+    }
+    if (create && empty) { empty->output = output; empty->chunk = 1024; }
+    return create ? empty : NULL;
 }
-
-static float loadFloat(atomic_uint *slot) {
-    uint32_t bits = atomic_load(slot);
-    float value;
-    memcpy(&value, &bits, sizeof value);
-    return value;
+static void silence(AudioBufferList *data) {
+    if (!data) return;
+    for (UInt32 b = 0; b < data->mNumberBuffers; b++) if (data->mBuffers[b].mData) memset(data->mBuffers[b].mData, 0, data->mBuffers[b].mDataByteSize);
 }
-
-static void storeFloat(atomic_uint *slot, float value) {
-    uint32_t bits;
-    memcpy(&bits, &value, sizeof bits);
-    atomic_store(slot, bits);
-}
-
-#pragma mark - the render thread: the chain
-
-// The source's next `frames` frames into `data`, in chunks of at most sg_chunk frames, each with a sample
-// time of its own, so Spotify's units never see a time twice (an AU renders a time it has seen from cache).
-static OSStatus pullSource(AudioUnit source, const AudioTimeStamp *outputTime, UInt32 frames, AudioBufferList *data) {
+static OSStatus pullSource(void *context, UInt32 frames, AudioBufferList *data) {
+    Source *chain = context;
     enum { kMaxBuffers = 8 };
-    UInt32 chunk = atomic_load_explicit(&sg_chunk, memory_order_relaxed);
-    if (data->mNumberBuffers > kMaxBuffers) chunk = frames;
-    for (UInt32 b = 0; b < data->mNumberBuffers; b++) if (!data->mBuffers[b].mData) chunk = frames;
-    UInt32 bytesPerFrame[kMaxBuffers];
-    for (UInt32 b = 0; b < data->mNumberBuffers && b < kMaxBuffers; b++) bytesPerFrame[b] = data->mBuffers[b].mDataByteSize / frames;
-
+    if (!chain || !chain->source) { silence(data); return noErr; }
+    if (!frames || frames > kSGTimePitchMaxFrames * 4 || !data || data->mNumberBuffers > kMaxBuffers) return kAudioUnitErr_TooManyFramesToProcess;
+    UInt32 bytes[kMaxBuffers];
+    for (UInt32 b = 0; b < data->mNumberBuffers; b++) {
+        if (!data->mBuffers[b].mData || data->mBuffers[b].mDataByteSize % frames) return kAudioUnitErr_InvalidPropertyValue;
+        bytes[b] = data->mBuffers[b].mDataByteSize / frames;
+    }
     for (UInt32 done = 0; done < frames;) {
-        UInt32 count = MIN(chunk, frames - done);
+        UInt32 count = MIN(chain->chunk, frames - done);
         struct { AudioBufferList list; AudioBuffer more[kMaxBuffers - 1]; } part;
-        AudioBufferList *target = data;
-        if (count != frames) {
-            part.list.mNumberBuffers = data->mNumberBuffers;
-            for (UInt32 b = 0; b < data->mNumberBuffers; b++) {
-                part.list.mBuffers[b] = (AudioBuffer){data->mBuffers[b].mNumberChannels, count * bytesPerFrame[b],
-                                                      (char *)data->mBuffers[b].mData + done * bytesPerFrame[b]};
-            }
-            target = &part.list;
-        }
-        AudioTimeStamp time = outputTime ? *outputTime : (AudioTimeStamp){0};
-        time.mSampleTime = sg_sourceTime;
-        time.mFlags |= kAudioTimeStampSampleTimeValid;
+        part.list.mNumberBuffers = data->mNumberBuffers;
+        for (UInt32 b = 0; b < data->mNumberBuffers; b++) part.list.mBuffers[b] = (AudioBuffer){data->mBuffers[b].mNumberChannels, count * bytes[b], (char *)data->mBuffers[b].mData + done * bytes[b]};
+        AudioTimeStamp stamp = {.mSampleTime = chain->time, .mFlags = kAudioTimeStampSampleTimeValid};
         AudioUnitRenderActionFlags flags = 0;
-        OSStatus status = AudioUnitRender(source, &flags, &time, sg_sourceBus, count, target);
-        sg_sourceTime += count;
-        if (status != noErr) return status;
+        OSStatus status = AudioUnitRender(chain->source, &flags, &stamp, chain->bus, count, &part.list);
+        chain->time += count;
+        if (status) return status;
         done += count;
     }
     return noErr;
 }
-
-static OSStatus pullForUnit(void *context, UInt32 frames, AudioBufferList *data) {
-    AudioUnit source = atomic_load(&sg_source);
-    if (!source) {
-        for (UInt32 b = 0; b < data->mNumberBuffers; b++) if (data->mBuffers[b].mData) memset(data->mBuffers[b].mData, 0, data->mBuffers[b].mDataByteSize);
-        return noErr;
-    }
-    return pullSource(source, NULL, frames, data);
-}
-
-static BOOL fitsUnit(const AudioBufferList *data, UInt32 frames, SGTimePitch *unit) {
-    if (data->mNumberBuffers != SGTimePitchChannels(unit) || frames > kSGTimePitchMaxFrames) return NO;
-    for (UInt32 b = 0; b < data->mNumberBuffers; b++) {
-        if (!data->mBuffers[b].mData || data->mBuffers[b].mDataByteSize < frames * sizeof(float)) return NO;
-    }
+static BOOL fits(const AudioBufferList *data, UInt32 frames, SGTimePitch *unit) {
+    if (!unit || data->mNumberBuffers != SGTimePitchChannels(unit) || frames > kSGTimePitchMaxFrames) return NO;
+    for (UInt32 b = 0; b < data->mNumberBuffers; b++) if (!data->mBuffers[b].mData || data->mBuffers[b].mDataByteSize < frames * sizeof(float)) return NO;
     return YES;
 }
-
-// The RemoteIO unit's input, in place of Spotify's connection from the mixer.
-static OSStatus feed(void *refCon, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *timestamp, UInt32 bus,
-                     UInt32 frames, AudioBufferList *data) {
-    AudioUnit source = atomic_load(&sg_source);
-    if (!source) {
-        for (UInt32 b = 0; b < data->mNumberBuffers; b++) if (data->mBuffers[b].mData) memset(data->mBuffers[b].mData, 0, data->mBuffers[b].mDataByteSize);
-        *flags |= kAudioUnitRenderAction_OutputIsSilence;
-        return noErr;
-    }
-    atomic_store(&sg_busy, true);
-    OSStatus status = -1;
-    SGTimePitch *unit = atomic_load(&sg_pull);
-    if (atomic_load(&sg_engaged) && unit && fitsUnit(data, frames, unit)) status = SGTimePitchRender(unit, frames, data);
-    if (status != noErr) status = pullSource(source, timestamp, frames, data);
-    atomic_store(&sg_busy, false);
+static OSStatus feed(void *context, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *stamp, UInt32 bus, UInt32 frames, AudioBufferList *data) {
+    if (!frames || !data) return noErr;
+    Source *chain = context;
+    pthread_mutex_t *sourceLock = &sourceLocks[chain - sources];
+    if (pthread_mutex_trylock(sourceLock)) { silence(data); *flags |= kAudioUnitRenderAction_OutputIsSilence; return noErr; }
+    OSStatus status;
+    if (chain->engaged && fits(data, frames, chain->pull)) {
+        status = SGTimePitchRender(chain->pull, frames, data);
+        // Failed processors may already have consumed input; never pull it a second time.
+        if (status) { silence(data); *flags |= kAudioUnitRenderAction_OutputIsSilence; }
+    } else status = pullSource(chain, frames, data);
+    pthread_mutex_unlock(sourceLock);
     return status;
 }
-
-#pragma mark - the render thread: in place, the fallback
-
-static float sg_scratch[kSGTimePitchMaxChannels][kSGTimePitchMaxFrames];
-
 static inline float readSample(const void *data, UInt32 index, UInt32 bytes, BOOL isFloat, UInt32 fraction) {
     if (bytes == 4) {
         if (isFloat) return ((const float *)data)[index];
@@ -184,9 +104,9 @@ static inline void writeSample(void *data, UInt32 index, float value, UInt32 byt
     }
 }
 
-static void shiftInPlace(SGTimePitch *unit, AudioUnitRenderActionFlags *flags, UInt32 frames, AudioBufferList *data) {
-    UInt32 formatFlags = atomic_load_explicit(&sg_hardware.flags, memory_order_relaxed);
-    UInt32 bytes = atomic_load_explicit(&sg_hardware.bytes, memory_order_relaxed);
+static void shiftInPlace(Source *chain, SGTimePitch *unit, AudioUnitRenderActionFlags *flags, UInt32 frames, AudioBufferList *data) {
+    UInt32 formatFlags = chain->hardware.mFormatFlags;
+    UInt32 bytes = chain->hardware.mBitsPerChannel / 8;
     UInt32 channels = SGTimePitchChannels(unit);
     BOOL isFloat = (formatFlags & kAudioFormatFlagIsFloat) != 0;
     BOOL split = (formatFlags & kAudioFormatFlagIsNonInterleaved) != 0;
@@ -206,7 +126,7 @@ static void shiftInPlace(SGTimePitch *unit, AudioUnitRenderActionFlags *flags, U
             lanes[c] = data->mBuffers[c].mData;
             continue;
         }
-        lanes[c] = sg_scratch[c];
+        lanes[c] = chain->scratch[c];
         const void *source = data->mBuffers[split ? c : 0].mData;
         for (UInt32 i = 0; i < frames; i++) {
             lanes[c][i] = silent ? 0 : readSample(source, split ? i : i * channels + c, bytes, isFloat, fraction);
@@ -220,234 +140,221 @@ static void shiftInPlace(SGTimePitch *unit, AudioUnitRenderActionFlags *flags, U
     *flags &= ~kAudioUnitRenderAction_OutputIsSilence;
 }
 
-static OSStatus rendered(void *refCon, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *timestamp, UInt32 bus,
-                         UInt32 frames, AudioBufferList *data) {
-    if (!(*flags & kAudioUnitRenderAction_PostRender) || bus != 0 || !data || !data->mNumberBuffers || !frames) return noErr;
-    if (tapped() || !atomic_load(&sg_engaged)) return noErr;
-    atomic_store(&sg_busy, true);
-    SGTimePitch *unit = atomic_load(&sg_inPlace);
-    if (atomic_load(&sg_engaged) && unit) shiftInPlace(unit, flags, frames, data);
-    atomic_store(&sg_busy, false);
+
+static OSStatus rendered(void *output, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *stamp, UInt32 bus, UInt32 frames, AudioBufferList *data) {
+    if (!data || !frames || pthread_mutex_trylock(&lock)) return noErr;
+    Source *chain = find(output, NO);
+    pthread_mutex_unlock(&lock);
+    if (!chain) return noErr;
+    pthread_mutex_t *sourceLock = &sourceLocks[chain - sources];
+    if (pthread_mutex_trylock(sourceLock)) return noErr;
+    if (chain && !chain->source && chain->engaged && chain->inPlace) shiftInPlace(chain, chain->inPlace, flags, frames, data);
+    pthread_mutex_unlock(sourceLock);
     return noErr;
 }
-
-#pragma mark - Spotify's audio thread
-
-static BOOL isRemoteIO(AudioUnit unit) {
-    AudioComponentDescription description = {0};
-    if (!unit || AudioComponentGetDescription(AudioComponentInstanceGetComponent(unit), &description) != noErr) return NO;
-    return description.componentType == kAudioUnitType_Output && description.componentSubType == kAudioUnitSubType_RemoteIO;
-}
-
-static OSStatus (*sg_setProperty)(AudioUnit, AudioUnitPropertyID, AudioUnitScope, AudioUnitElement, const void *, UInt32);
-
-static OSStatus setProperty(AudioUnit unit, AudioUnitPropertyID property, AudioUnitScope scope, AudioUnitElement element,
-                            const void *data, UInt32 size) {
-    if (property == kAudioUnitProperty_MaximumFramesPerSlice && data && size >= sizeof(UInt32)) {
-        UInt32 frames = *(const UInt32 *)data;
-        if (frames >= 256) atomic_store(&sg_chunk, frames);
-    }
-    if (property != kAudioUnitProperty_MakeConnection || scope != kAudioUnitScope_Input || element != 0 || !data
-        || size < sizeof(AudioUnitConnection) || !isRemoteIO(unit)) {
-        return sg_setProperty(unit, property, scope, element, data, size);
-    }
-    const AudioUnitConnection *connection = data;
-    if (!connection->sourceAudioUnit) {
-        atomic_store(&sg_source, NULL);
-        AURenderCallbackStruct none = {0};
-        sg_setProperty(unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &none, sizeof none);
-        SGLog(@"redesign speed: Spotify disconnected its output");
-        return sg_setProperty(unit, property, scope, element, data, size);
-    }
-    sg_sourceBus = connection->sourceOutputNumber;
-    atomic_store(&sg_source, connection->sourceAudioUnit);
-    AURenderCallbackStruct callback = {feed, NULL};
-    OSStatus status = sg_setProperty(unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof callback);
-    SGLog(@"redesign speed: Spotify's mixer feeds its output through the menu's unit now (status %d)", (int)status);
-    if (status == noErr) return noErr;
-    atomic_store(&sg_source, NULL);
-    return sg_setProperty(unit, property, scope, element, data, size);
-}
-
-static OSStatus (*sg_startOutput)(AudioUnit unit);
-
-// One side of the RemoteIO unit's element 0 into `into`; a side that is not linear PCM is left as it was.
-static BOOL readScope(AudioUnit unit, AudioUnitScope scope, Format *into, AudioStreamBasicDescription *format) {
+static BOOL readFormat(AudioUnit output, AudioUnitScope scope, AudioStreamBasicDescription *format) {
     UInt32 size = sizeof *format;
-    OSStatus status = AudioUnitGetProperty(unit, kAudioUnitProperty_StreamFormat, scope, 0, format, &size);
-    if (status != noErr || format->mFormatID != kAudioFormatLinearPCM || format->mSampleRate <= 0) return NO;
-    uint64_t bits;
-    memcpy(&bits, &format->mSampleRate, sizeof bits);
-    atomic_store(&into->rateBits, bits);
-    atomic_store(&into->flags, format->mFormatFlags);
-    atomic_store(&into->channels, format->mChannelsPerFrame);
-    atomic_store(&into->bytes, format->mBitsPerChannel / 8);
-    return YES;
+    *format = (AudioStreamBasicDescription){0};
+    return !AudioUnitGetProperty(output, kAudioUnitProperty_StreamFormat, scope, 0, format, &size) &&
+        format->mFormatID == kAudioFormatLinearPCM && isfinite(format->mSampleRate) && format->mSampleRate > 0 &&
+        format->mChannelsPerFrame >= 1 && format->mChannelsPerFrame <= kSGTimePitchMaxChannels;
 }
-
-static void readFormat(AudioUnit unit) {
-    AudioStreamBasicDescription client = {0}, hardware = {0};
-    BOOL clientRead = readScope(unit, kAudioUnitScope_Input, &sg_client, &client);
-    BOOL hardwareRead = readScope(unit, kAudioUnitScope_Output, &sg_hardware, &hardware);
-    static int logged;
-    if (!clientRead || !hardwareRead) {
-        if (logged++ < 6) SGLog(@"redesign speed: the output is not linear PCM (Spotify's side %@, the hardware's %@)", clientRead ? @"is" : @"is not", hardwareRead ? @"is" : @"is not");
-        if (!clientRead) return;
-    }
-    if (logged++ < 6) SGLog(@"redesign speed: Spotify's output is %.0f Hz, %u channels, %u bits, flags 0x%x, into the hardware's %.0f Hz, %u channels, %u bits, flags 0x%x, slices of %u, %@",
-                            client.mSampleRate, (unsigned)client.mChannelsPerFrame, (unsigned)client.mBitsPerChannel, (unsigned)client.mFormatFlags,
-                            hardware.mSampleRate, (unsigned)hardware.mChannelsPerFrame, (unsigned)hardware.mBitsPerChannel, (unsigned)hardware.mFormatFlags,
-                            atomic_load(&sg_chunk), tapped() ? @"fed through the menu's unit" : @"not taken over");
+static void destroyUnits(Source *chain) {
+    chain->engaged = NO;
+    SGTimePitchDestroy(chain->pull); SGTimePitchDestroy(chain->inPlace);
+    chain->pull = chain->inPlace = NULL;
 }
-
-static void apply(void);
-
-static OSStatus startOutput(AudioUnit unit) {
-    if (unit && isRemoteIO(unit)) {
-        readFormat(unit);
-        AudioUnitRemoveRenderNotify(unit, rendered, NULL);
-        AudioUnitAddRenderNotify(unit, rendered, NULL);
-        // A speed or pitch chosen before the output started, or kept across a new format, applies now.
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (sg_speed != 1 || sg_semitones != 0) apply();
-        });
-    }
-    return sg_startOutput(unit);
-}
-
-#pragma mark - engaging the unit
-
-// Stops the render thread using a unit, and returns once it no longer is.
-static void disengage(void) {
-    atomic_store(&sg_engaged, false);
-    for (int i = 0; i < 200 && atomic_load(&sg_busy); i++) usleep(250);
-}
-
-// The unit for the output's format and the way in use, made when there is none or the format changed. A
-// replaced one is never freed: the render thread may still hold it, and a format change is rare.
-static SGTimePitch *unitForFormat(void) {
-    BOOL pull = tapped();
-    Format *format = pull ? &sg_client : &sg_hardware;
-    double rate;
-    uint64_t bits = atomic_load(&format->rateBits);
-    memcpy(&rate, &bits, sizeof rate);
-    UInt32 channels = atomic_load(&format->channels);
-    if (pull) {
-        // In the chain the unit hands its buffers to the RemoteIO unit as they are: float, one per channel.
-        UInt32 flags = atomic_load(&format->flags);
-        BOOL canonical = (flags & kAudioFormatFlagIsFloat) && (flags & kAudioFormatFlagIsNonInterleaved) && atomic_load(&format->bytes) == 4;
-        if (!canonical) {
-            static int logged;
-            if (logged++ < 3) SGLog(@"redesign speed: the output is not float per channel (flags 0x%x), speed cannot apply", (unsigned)flags);
-            return NULL;
-        }
-    }
-    if (rate <= 0 || channels < 1 || channels > kSGTimePitchMaxChannels) return NULL;
-    _Atomic(SGTimePitch *) *slot = pull ? &sg_pull : &sg_inPlace;
-    pthread_mutex_lock(&sg_buildLock);
-    SGTimePitch *unit = atomic_load(slot);
-    if (!unit || SGTimePitchSampleRate(unit) != rate || SGTimePitchChannels(unit) != channels) {
-        BOOL wasEngaged = atomic_load(&sg_engaged);
-        disengage();
-        unit = SGTimePitchCreate(rate, channels, pull ? pullForUnit : NULL, NULL);
-        if (unit) {
-            SGTimePitchSetRate(unit, pull ? sg_speed : 1);
-            SGTimePitchSetSemitones(unit, sg_semitones);
-        }
-        atomic_store(slot, unit);
-        SGLog(@"redesign speed: %@ %@ for %.0f Hz, %u channels", unit ? @"a unit" : @"no unit", pull ? @"in the chain" : @"in place", rate, (unsigned)channels);
-        if (unit && wasEngaged) atomic_store(&sg_engaged, true);
-    }
-    pthread_mutex_unlock(&sg_buildLock);
-    return unit;
-}
-
-static void report(void) {
-    SGTimePitch *unit = atomic_load(tapped() ? &sg_pull : &sg_inPlace);
+static void build(Source *chain) {
+    destroyUnits(chain);
+    AudioStreamBasicDescription *format = chain->source ? &chain->client : &chain->hardware;
+    if (format->mSampleRate <= 0 || !format->mChannelsPerFrame || format->mChannelsPerFrame > kSGTimePitchMaxChannels) return;
+    BOOL canonical = (format->mFormatFlags & kAudioFormatFlagIsFloat) && (format->mFormatFlags & kAudioFormatFlagIsNonInterleaved) && format->mBitsPerChannel == 32;
+    if (chain->source && !canonical) return;
+    SGTimePitch *unit = chain->source && coupled
+        ? SGTimePitchCreateVarispeed(format->mSampleRate, format->mChannelsPerFrame, pullSource, chain)
+        : SGTimePitchCreate(format->mSampleRate, format->mChannelsPerFrame, chain->source ? pullSource : NULL, chain);
+    if (chain->source) chain->pull = unit; else chain->inPlace = unit;
     if (!unit) return;
-    SGLog(@"redesign speed: %.2fx, %+.0f st, %u underruns, %u failures, largest pull %u, %.1f s of input", sg_speed, sg_semitones,
-          SGTimePitchUnderruns(unit), SGTimePitchFailures(unit), SGTimePitchLargestPull(unit),
-          SGTimePitchConsumed(unit) / SGTimePitchSampleRate(unit));
+    SGTimePitchSetRate(unit, chain->source ? speed : 1);
+    SGTimePitchSetSemitones(unit, coupled ? 0 : semitones);
+    chain->engaged = (chain->source && speed != 1) || (!coupled && semitones != 0);
 }
-
-// Puts the unit in or takes it out for the current speed and pitch.
-static void apply(void) {
-    BOOL normal = sg_speed == 1 && sg_semitones == 0;
-    static NSUInteger change;
-    NSUInteger thisChange = ++change;
-    if (normal) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kOffAfter * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (thisChange != change || sg_speed != 1 || sg_semitones != 0 || !atomic_load(&sg_engaged)) return;
-            report();
-            disengage();
-        });
+static void configure(AudioUnit output, bool restarted) {
+    pthread_mutex_lock(&lock);
+    Source *chain = find(output, YES);
+    if (chain) {
+        pthread_mutex_lock(&sourceLocks[chain - sources]);
+        AudioStreamBasicDescription client, hardware;
+        readFormat(output, kAudioUnitScope_Input, &client);
+        readFormat(output, kAudioUnitScope_Output, &hardware);
+        BOOL different = memcmp(&client, &chain->client, sizeof client) || memcmp(&hardware, &chain->hardware, sizeof hardware);
+        chain->client = client; chain->hardware = hardware;
+        if (different || restarted || (!chain->pull && !chain->inPlace)) build(chain);
+        pthread_mutex_unlock(&sourceLocks[chain - sources]);
     }
-    SGTimePitch *unit = unitForFormat();
-    if (!unit) {
-        static int logged;
-        if (!normal && logged++ < 3) SGLog(@"redesign speed: Spotify's output has not started, nothing to change yet");
-        return;
-    }
-    SGTimePitchSetRate(unit, tapped() ? sg_speed : 1);
-    SGTimePitchSetSemitones(unit, sg_semitones);
-    if (!normal && !atomic_load(&sg_engaged)) {
-        disengage();
-        SGTimePitchReset(unit);
-        atomic_store(&sg_engaged, true);
-    }
+    pthread_mutex_unlock(&lock);
 }
-
-#pragma mark - the menu's calls
-
-double SGPlayerSpeed(void) {
-    return sg_speed;
+static void disconnect(AudioUnit output) {
+    pthread_mutex_lock(&lock);
+    for (unsigned i = 0; i < 16; i++) {
+        Source *chain = &sources[i];
+        if (chain->output != output && chain->source != output) continue;
+        pthread_mutex_lock(&sourceLocks[i]);
+        destroyUnits(chain);
+        if (chain->output == output) *chain = (Source){0};
+        else { chain->source = NULL; chain->time = 0; }
+        pthread_mutex_unlock(&sourceLocks[i]);
+    }
+    pthread_mutex_unlock(&lock);
 }
-
+static BOOL remoteIO(AudioUnit output) {
+    AudioComponentDescription d = {0};
+    return output && !AudioComponentGetDescription(AudioComponentInstanceGetComponent(output), &d) && d.componentType == kAudioUnitType_Output && d.componentSubType == kAudioUnitSubType_RemoteIO;
+}
+static OSStatus setProperty(AudioUnit output, AudioUnitPropertyID property, AudioUnitScope scope, AudioUnitElement element, const void *data, UInt32 size) {
+    if (property == kAudioUnitProperty_MaximumFramesPerSlice && data && size >= sizeof(UInt32)) {
+        OSStatus status = SGAudioOriginalSetProperty(output, property, scope, element, data, size);
+        if (!status) {
+            UInt32 maximum = MAX(1u, MIN(*(const UInt32 *)data, (UInt32)kSGTimePitchMaxFrames));
+            pthread_mutex_lock(&lock);
+            for (unsigned i = 0; i < 16; i++) if (sources[i].source == output) {
+                pthread_mutex_lock(&sourceLocks[i]); sources[i].chunk = maximum; pthread_mutex_unlock(&sourceLocks[i]);
+            }
+            pthread_mutex_unlock(&lock);
+        }
+        return status;
+    }
+    if (property == kAudioUnitProperty_SetRenderCallback && scope == kAudioUnitScope_Input && !element && remoteIO(output)) {
+        pthread_mutex_lock(&lock);
+        Source *chain = find(output, NO);
+        if (chain) {
+            pthread_mutex_lock(&sourceLocks[chain - sources]);
+            destroyUnits(chain); chain->source = NULL; chain->time = 0;
+            pthread_mutex_unlock(&sourceLocks[chain - sources]);
+        }
+        pthread_mutex_unlock(&lock);
+        OSStatus status = SGAudioOriginalSetProperty(output, property, scope, element, data, size);
+        if (!status) configure(output, false);
+        return status;
+    }
+    if (property == kAudioUnitProperty_StreamFormat && scope == kAudioUnitScope_Input && !element && data && size >= sizeof(AudioStreamBasicDescription) && remoteIO(output)) {
+        pthread_mutex_lock(&lock);
+        Source *chain = find(output, NO);
+        AudioUnit source = chain ? chain->source : NULL;
+        UInt32 bus = chain ? chain->bus : 0;
+        pthread_mutex_unlock(&lock);
+        AudioStreamBasicDescription actual = {0}, requested = *(const AudioStreamBasicDescription *)data;
+        UInt32 length = sizeof actual;
+        if (source && !AudioUnitGetProperty(source, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, bus, &actual, &length) &&
+            actual.mFormatID == kAudioFormatLinearPCM && requested.mFormatID == kAudioFormatLinearPCM &&
+            isfinite(actual.mSampleRate) && actual.mSampleRate > 0 && actual.mChannelsPerFrame == requested.mChannelsPerFrame) {
+            requested.mSampleRate = actual.mSampleRate;
+            return SGAudioOriginalSetProperty(output, property, scope, element, &requested, sizeof requested);
+        }
+    }
+    if (property != kAudioUnitProperty_MakeConnection || scope != kAudioUnitScope_Input || element || !data || size < sizeof(AudioUnitConnection) || !remoteIO(output)) return SGAudioOriginalSetProperty(output, property, scope, element, data, size);
+    const AudioUnitConnection *connection = data;
+    pthread_mutex_lock(&lock);
+    Source *chain = find(output, YES);
+    if (!chain) { pthread_mutex_unlock(&lock); return SGAudioOriginalSetProperty(output, property, scope, element, data, size); }
+    pthread_mutex_lock(&sourceLocks[chain - sources]);
+    destroyUnits(chain);
+    if (chain->source != connection->sourceAudioUnit || chain->bus != connection->sourceOutputNumber) chain->time = 0;
+    chain->source = connection->sourceAudioUnit; chain->bus = connection->sourceOutputNumber;
+    if (chain->source) {
+        UInt32 maximum = 1024, length = sizeof maximum;
+        AudioUnitGetProperty(chain->source, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &maximum, &length);
+        chain->chunk = MAX(1u, MIN(maximum, (UInt32)kSGTimePitchMaxFrames));
+    }
+    pthread_mutex_unlock(&sourceLocks[chain - sources]);
+    pthread_mutex_unlock(&lock);
+    if (!connection->sourceAudioUnit) {
+        AURenderCallbackStruct callback = {0};
+        SGAudioOriginalSetProperty(output, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof callback);
+        return SGAudioOriginalSetProperty(output, property, scope, element, data, size);
+    }
+    AudioStreamBasicDescription sourceFormat = {0}, client = {0};
+    UInt32 length = sizeof sourceFormat;
+    OSStatus sourceRead = AudioUnitGetProperty(connection->sourceAudioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, connection->sourceOutputNumber, &sourceFormat, &length);
+    if (!sourceRead && readFormat(output, kAudioUnitScope_Input, &client) && sourceFormat.mFormatID == kAudioFormatLinearPCM &&
+        isfinite(sourceFormat.mSampleRate) && sourceFormat.mSampleRate > 0 && sourceFormat.mChannelsPerFrame == client.mChannelsPerFrame && sourceFormat.mSampleRate != client.mSampleRate) {
+        // RemoteIO must convert from the actual local-file mixer rate, not play it at the hardware rate.
+        client.mSampleRate = sourceFormat.mSampleRate;
+        SGAudioOriginalSetProperty(output, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &client, sizeof client);
+    }
+    AURenderCallbackStruct callback = {feed, chain};
+    OSStatus status = SGAudioOriginalSetProperty(output, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof callback);
+    if (status) {
+        pthread_mutex_lock(&lock);
+        pthread_mutex_lock(&sourceLocks[chain - sources]); chain->source = NULL; pthread_mutex_unlock(&sourceLocks[chain - sources]);
+        pthread_mutex_unlock(&lock);
+        return SGAudioOriginalSetProperty(output, property, scope, element, data, size);
+    }
+    configure(output, true);
+    return noErr;
+}
+static void apply(BOOL rebuild) {
+    pthread_mutex_lock(&lock);
+    for (unsigned i = 0; i < 16; i++) {
+        Source *chain = &sources[i];
+        if (!chain->output) continue;
+        pthread_mutex_lock(&sourceLocks[i]);
+        if (rebuild) build(chain);
+        SGTimePitch *unit = chain->source ? chain->pull : chain->inPlace;
+        if (!unit) { pthread_mutex_unlock(&sourceLocks[i]); continue; }
+        SGTimePitchSetRate(unit, chain->source ? speed : 1);
+        SGTimePitchSetSemitones(unit, coupled ? 0 : semitones);
+        BOOL wants = (chain->source && speed != 1) || (!coupled && semitones != 0);
+        if (wants && !chain->engaged) { SGTimePitchReset(unit); chain->engaged = YES; }
+        pthread_mutex_unlock(&sourceLocks[i]);
+    }
+    NSUInteger revision = ++change;
+    pthread_mutex_unlock(&lock);
+    if (speed == 1 && (coupled || semitones == 0)) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1500 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        pthread_mutex_lock(&lock);
+        if (revision == change) for (unsigned i = 0; i < 16; i++) {
+            pthread_mutex_lock(&sourceLocks[i]); sources[i].engaged = NO; pthread_mutex_unlock(&sourceLocks[i]);
+        }
+        pthread_mutex_unlock(&lock);
+    });
+}
+double SGPlayerSpeed(void) { return speed; }
 BOOL SGPlayerSpeedAllowed(void) {
-    return tapped();
+    BOOL result = NO;
+    pthread_mutex_lock(&lock);
+    for (unsigned i = 0; i < 16; i++) if (sources[i].pull) result = YES;
+    pthread_mutex_unlock(&lock);
+    return result;
 }
-
-void SGSetPlayerSpeed(double speed) {
-    if (!tapped()) return;
-    sg_speed = (float)speed;
-    storeFloat(&sg_speedBits, sg_speed);
-    apply();
+void SGSetPlayerSpeed(double value) {
+    if (!isfinite(value) || value < 0.25 || value > 4 || !SGPlayerSpeedAllowed()) return;
+    pthread_mutex_lock(&lock); speed = value; pthread_mutex_unlock(&lock);
+    uint32_t bits; memcpy(&bits, &speed, sizeof bits); atomic_store(&speedBits, bits);
+    apply(NO);
 }
-
-float SGPlayerPitch(void) {
-    return sg_semitones;
+float SGPlayerPitch(void) { return semitones; }
+BOOL SGPlayerPitchAvailable(void) { return available && !coupled; }
+void SGSetPlayerPitch(float value) {
+    if (!SGPlayerPitchAvailable() || !isfinite(value) || fabsf(value) > 24) return;
+    pthread_mutex_lock(&lock); semitones = value; pthread_mutex_unlock(&lock); apply(NO);
 }
-
-void SGSetPlayerPitch(float semitones) {
-    if (!sg_startOutput && !tapped()) return;
-    sg_semitones = semitones;
-    apply();
+BOOL SGPlayerPitchFollowsSpeed(void) { return coupled; }
+void SGSetPlayerPitchFollowsSpeed(BOOL value) {
+    pthread_mutex_lock(&lock); coupled = value; semitones = 0; pthread_mutex_unlock(&lock);
+    SGSetEnabled(SGKeyPitchFollowsSpeed, value); apply(YES);
 }
-
-BOOL SGPlayerPitchAvailable(void) {
-    return sg_startOutput != NULL || tapped();
-}
-
-#pragma mark - Spotify's clock
-
 %hook SPTPlayerState
 - (double)playbackSpeed {
-    double speed = %orig;
-    float ours = loadFloat(&sg_speedBits);
-    return ours > 0 && ours != 1 ? speed * ours : speed;
+    uint32_t bits = atomic_load(&speedBits); float value; memcpy(&value, &bits, sizeof value);
+    return %orig * value;
 }
 %end
-
 %ctor {
-    storeFloat(&sg_speedBits, 1);
-    if (!SGRebindImport("AudioUnitSetProperty", setProperty, (void **)&sg_setProperty) || !sg_setProperty) {
-        sg_setProperty = NULL;
-        SGLog(@"redesign speed: Spotify does not import AudioUnitSetProperty, the menu offers pitch only");
-    }
-    if (!SGRebindImport("AudioOutputUnitStart", startOutput, (void **)&sg_startOutput) || !sg_startOutput) {
-        sg_startOutput = NULL;
-        SGLog(@"redesign speed: Spotify does not import AudioOutputUnitStart");
-    }
+    for (unsigned i = 0; i < 16; i++) pthread_mutex_init(&sourceLocks[i], NULL);
+    coupled = SGFlag(SGKeyPitchFollowsSpeed, YES);
+    uint32_t bits; memcpy(&bits, &speed, sizeof bits); atomic_store(&speedBits, bits);
+    available = SGAudioRegister(SGAudioSpeed, configure, rendered, disconnect);
+    if (available) SGAudioRegisterPropertyHandler(setProperty);
     %init;
     SGRequireClasses(@[@"SPTPlayerState"]);
 }

@@ -119,6 +119,12 @@ static NSDictionary *noActions(void) {
     _black.hidden = flows;
     if (flows) _backdrop.hidden = YES;
     else _flow.hidden = YES;
+    if (flows && _image) { [_flow setArtwork:_image]; _flow.hidden = NO; }
+    if (_image && !flows) {
+        UIImage *image = _image;
+        _image = nil; _identity = nil;
+        [self setArtwork:image identity:nil animated:NO];
+    }
     [self watch];
     [self updateMotion];
     [self setNeedsLayout];
@@ -139,6 +145,7 @@ static NSDictionary *noActions(void) {
         [center addObserver:self selector:@selector(updateMotionSoon) name:name object:nil];
     }
     SGRObservePlayerTransition(self, ^(id owner) { [owner updateMotion]; }, ^(id owner) { [owner updateMotion]; });
+    [center addObserver:self selector:@selector(refreshFluidSettings) name:NSUserDefaultsDidChangeNotification object:nil];
 }
 
 - (void)dealloc {
@@ -148,6 +155,10 @@ static NSDictionary *noActions(void) {
 // The power state is reported off the main thread.
 - (void)updateMotionSoon {
     dispatch_async(dispatch_get_main_queue(), ^{ [self updateMotion]; });
+}
+
+- (void)refreshFluidSettings {
+    dispatch_async(dispatch_get_main_queue(), ^{ [self->_flow refreshSettings]; });
 }
 
 - (void)updateMotion {
@@ -205,8 +216,9 @@ static NSDictionary *noActions(void) {
     if (!image || image == _image || (identity && [identity isEqualToString:_identity])) return;
     _image = image;
     _identity = [identity copy];
+    if (_flows) { [_flow setArtwork:image]; _flow.hidden = NO; [self updateMotion]; }
     NSUInteger generation = ++_generation;
-    SGRPaletteRequest request = {CGSizeZero, NO, YES, _flows};
+    SGRPaletteRequest request = {CGSizeZero, NO, YES, NO};
     if (_showsBackdrop && !_flows) request.backdropSize = CGSizeMake(self.bounds.size.width > 0 ? self.bounds.size.width : 402, [self backdropHeightNow]);
     __weak SGRArtworkField *weakSelf = self;
     [SGRPalette paletteForImage:image request:request completion:^(SGRPalette *palette) {
@@ -218,14 +230,6 @@ static NSDictionary *noActions(void) {
 
 - (void)applyPalette:(SGRPalette *)palette animated:(BOOL)animated {
     _read = YES;
-    if (_flows && palette.flowColors) {
-        [_flow setColors:palette.flowColors animated:animated && !_flow.hidden];
-        _flow.hidden = NO;
-        [self updateMotion];
-        // Past the moving field's edges (the pull that dismisses the player) the colour under it goes on.
-        [self applyColor:_preferred ?: _flow.baseColor animated:animated];
-        return;
-    }
     if (_showsBackdrop && !_flows && palette.backdrop) {
         [CATransaction begin];
         [CATransaction setDisableActions:YES];

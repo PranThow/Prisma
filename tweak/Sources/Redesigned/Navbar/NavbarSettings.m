@@ -60,6 +60,8 @@ static void appendTab(NSDictionary *tab) {
     SGRRefreshTabBar();
 }
 
+#import "TabEditor.inc"
+
 @interface SGRTabPickerPage : SGPage
 @end
 
@@ -99,9 +101,7 @@ static NSArray<NSDictionary *> *openablePresets(void) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    _footer = SGNote(@"Paste a share link or a spotify: URI. Icons: home, search, collection, heart, "
-                   "playlist, album, artist, podcasts, audiobook, downloaded, bookmark, browse, star, "
-                   "user, events, queue, plus, radio, gears, spotifyLogo.");
+    _footer = SGNote(@"Pick a Spotify page or paste a share link. The editor lets you name the tab and search Spotify glyphs or SF Symbols.");
     self.tableView.tableFooterView = _footer;
 }
 
@@ -149,40 +149,17 @@ static NSArray<NSDictionary *> *openablePresets(void) {
 
 - (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
     [table deselectRowAtIndexPath:path animated:YES];
-    if (path.section == 0) {
-        appendTab(_presets[(NSUInteger)path.row]);
-        [self.navigationController popViewControllerAnimated:YES];
-        return;
-    }
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Any link" message:@"Where the tab goes, and the glyph on it." preferredStyle:UIAlertControllerStyleAlert];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder = @"Name"; }];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
-        field.placeholder = @"spotify:playlist:…";
-        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
-        field.autocorrectionType = UITextAutocorrectionTypeNo;
-    }];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
-        field.placeholder = @"Icon";
-        field.text = @"star";
-        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
-        field.autocorrectionType = UITextAutocorrectionTypeNo;
-    }];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Add" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSString *title = alert.textFields[0].text, *icon = alert.textFields[2].text;
-        NSString *uri = SGSpotifyURIFromText(alert.textFields[1].text).absoluteString;
-        if (!uri.length) return;
-        NSString *via = nil;
-        SGLinkRoute route = SGSpotifyURIRoute([NSURL URLWithString:uri], &via);
-        SGLog(@"navbar: custom %@ -> %@", uri, route == SGLinkRouteOpens ? via : route == SGLinkRouteNone ? @"no handler" : @"unknown");
-        if (route == SGLinkRouteNone) {
-            [self refuse:uri];
-            return;
-        }
-        appendTab(@{SGRNavbarTitle: title.length ? title : uri, SGRNavbarURI: uri, SGRNavbarIcon: icon.length ? icon : @"star"});
-        [self.navigationController popViewControllerAnimated:YES];
-    }]];
-    [self presentViewController:alert animated:YES completion:nil];
+    SGRTabEditor *editor = [SGRTabEditor new];
+    editor.initialEntry = path.section == 0 ? _presets[(NSUInteger)path.row] : nil;
+    __weak typeof(self) weakSelf = self;
+    editor.saved = ^(NSDictionary *entry) {
+        appendTab(entry);
+        [weakSelf.navigationController popViewControllerAnimated:YES];
+    };
+    UINavigationController *sheet = [[UINavigationController alloc] initWithRootViewController:editor];
+    sheet.modalPresentationStyle = UIModalPresentationPageSheet;
+    sheet.sheetPresentationController.detents = @[UISheetPresentationControllerDetent.mediumDetent, UISheetPresentationControllerDetent.largeDetent];
+    [self presentViewController:sheet animated:YES completion:nil];
 }
 
 @end
@@ -248,7 +225,7 @@ typedef NS_ENUM(NSInteger, SGRNavbarSection) {
 }
 
 - (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {
-    if (section == SGRNavbarSectionSwitch) return 2;
+    if (section == SGRNavbarSectionSwitch) return 3;
     return section == SGRNavbarSectionTabs ? (NSInteger)_entries.count : 1;
 }
 
@@ -274,12 +251,12 @@ typedef NS_ENUM(NSInteger, SGRNavbarSection) {
     UITableViewCell *cell = SGDequeueCell(table, @"navbar");
     switch (path.section) {
         case SGRNavbarSectionSwitch: {
-            BOOL labels = path.row == 1;
-            SGFillCell(cell, labels ? @"Hide labels" : @"Custom navbar", labels ? @"Icons only" : nil, nil, nil);
+            BOOL labels = path.row == 1, accessory = path.row == 2;
+            SGFillCell(cell, accessory ? @"Integrated mini-player" : labels ? @"Hide labels" : @"Custom navbar", accessory ? @"Restart to apply" : labels ? @"Icons only" : nil, nil, nil);
             UISwitch *toggle = [UISwitch new];
             toggle.onTintColor = SGGreen();
             toggle.tag = path.row;
-            toggle.on = labels ? SGHidden(SGRKeyNavbarHideLabels) : SGEnabled(SGRKeyNavbar);
+            toggle.on = accessory ? SGHidden(SGRKeyIntegratedPlayer) : labels ? SGHidden(SGRKeyNavbarHideLabels) : SGEnabled(SGRKeyNavbar);
             [toggle addTarget:self action:@selector(toggled:) forControlEvents:UIControlEventValueChanged];
             cell.accessoryView = toggle;
             break;
@@ -351,7 +328,7 @@ typedef NS_ENUM(NSInteger, SGRNavbarSection) {
 }
 
 - (void)toggled:(UISwitch *)toggle {
-    SGSetEnabled(toggle.tag == 1 ? SGRKeyNavbarHideLabels : SGRKeyNavbar, toggle.on);
+    SGSetEnabled(toggle.tag == 2 ? SGRKeyIntegratedPlayer : toggle.tag == 1 ? SGRKeyNavbarHideLabels : SGRKeyNavbar, toggle.on);
     SGRRefreshTabBar();
 }
 

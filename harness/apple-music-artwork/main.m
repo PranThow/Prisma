@@ -19,6 +19,12 @@ int main(void) {
         assert([SGAppleArtworkNormalize(@"  BEYONCÉ　& Jay–Z  ") isEqual:@"beyonce and jay z"]);
         assert([SGAppleArtworkNormalize(@"Don’t") isEqual:SGAppleArtworkNormalize(@"Don't")]);
         assert(!SGAppleArtworkNormalize(NSNull.null).length);
+        assert(SGAppleArtworkArtistsMatch(@"Artist A feat. Artist B", @"Artist B & Artist A"));
+        assert(SGAppleArtworkArtistsMatch(@"Beyoncé & Jay-Z", @"Jay-Z and BEYONCE"));
+        assert(!SGAppleArtworkArtistsMatch(@"Artist A & Artist B", @"Artist A"));
+        assert(!SGAppleArtworkArtistsMatch(@"Artist A & Artist B", @"Artist A & Artist C"));
+        assert(!SGAppleArtworkArtistsMatch(@"Artist A & Artist A", @"Artist A & Artist B"));
+        assert(!SGAppleArtworkArtistsMatch(@"Artist A Tribute", @"Artist A"));
         NSDictionary *standard = album(@"Beyoncé",@"Renaissance");
         NSDictionary *deluxe = album(@"Beyoncé",@"Renaissance (Deluxe Edition)");
         NSDictionary *live = album(@"Beyoncé",@"Renaissance (Live)");
@@ -56,6 +62,9 @@ int main(void) {
         NSURL *squareVariant = SGAppleArtworkPlaylistURL(master,[NSURL URLWithString:@"https://mvod.itunes.apple.com/art/master.m3u8"],1,&squareMaster,&squareError);
         assert(squareMaster && !squareError && [squareVariant.lastPathComponent isEqual:@"square.m3u8"]);
         parse(@"#EXTM3U\n#EXT-X-STREAM-INF:CODECS=\"hvc1.2\",RESOLUTION=600x800\na.m3u8",YES,NO);
+        parse(@"#EXTM3U\n#EXT-X-STREAM-INF:CODECS=\"hvc1.2.4.L120.B0\",RESOLUTION=600x800,VIDEO-RANGE=SDR\na.m3u8",YES,SGAppleArtworkHEVCSupported());
+        parse(@"#EXTM3U\n#EXT-X-STREAM-INF:CODECS=\"hev1.1.6.L120.B0\",RESOLUTION=600x800\na.m3u8",YES,SGAppleArtworkHEVCSupported());
+        parse(@"#EXTM3U\n#EXT-X-STREAM-INF:CODECS=\"hvc1.2.4.L120.B0\",RESOLUTION=600x800,VIDEO-RANGE=PQ\na.m3u8",YES,NO);
         parse(@"#EXTM3U\n#EXT-X-STREAM-INF:CODECS=\"avc1.64001f\",RESOLUTION=600x800,AUDIO=\"audio\"\na.m3u8",YES,NO);
         parse(@"#EXTM3U\n#EXT-X-STREAM-INF:CODECS=\"avc1.64001f\",RESOLUTION=600x800",YES,NO);
         parse(@"#EXTM3U\n#EXT-X-STREAM-INF:CODECS=\"avc1.64001f,RESOLUTION=600x800\na.m3u8",YES,NO);

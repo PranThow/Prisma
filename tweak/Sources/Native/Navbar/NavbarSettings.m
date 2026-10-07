@@ -56,6 +56,8 @@ static void appendTab(NSDictionary *tab) {
     SGRefreshTabBar();
 }
 
+#import "TabEditor.inc"
+
 @interface SGTabPickerPage : SGPage
 @end
 
@@ -71,9 +73,7 @@ static void appendTab(NSDictionary *tab) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    _footer = SGNote(@"Paste a share link or a spotify: URI. Icons: home, search, collection, heart, "
-                   "playlist, album, artist, podcasts, audiobook, downloaded, bookmark, browse, star, "
-                   "user, events, queue, plus, radio, gears, spotifyLogo.");
+    _footer = SGNote(@"Pick a Spotify page or paste a share link. The editor lets you name the tab and search Spotify glyphs or SF Symbols.");
     self.tableView.tableFooterView = _footer;
 }
 
@@ -121,32 +121,17 @@ static void appendTab(NSDictionary *tab) {
 
 - (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
     [table deselectRowAtIndexPath:path animated:YES];
-    if (path.section == 0) {
-        appendTab(tabPresets()[(NSUInteger)path.row]);
-        [self.navigationController popViewControllerAnimated:YES];
-        return;
-    }
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Any link" message:@"Where the tab goes, and the glyph on it." preferredStyle:UIAlertControllerStyleAlert];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) { field.placeholder = @"Name"; }];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
-        field.placeholder = @"spotify:playlist:…";
-        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
-        field.autocorrectionType = UITextAutocorrectionTypeNo;
-    }];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
-        field.placeholder = @"Icon";
-        field.text = @"star";
-        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
-        field.autocorrectionType = UITextAutocorrectionTypeNo;
-    }];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Add" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSString *title = alert.textFields[0].text, *uri = alert.textFields[1].text, *icon = alert.textFields[2].text;
-        if (!uri.length) return;
-        appendTab(@{SGNavbarTitle: title.length ? title : uri, SGNavbarURI: uri, SGNavbarIcon: icon.length ? icon : @"star"});
-        [self.navigationController popViewControllerAnimated:YES];
-    }]];
-    [self presentViewController:alert animated:YES completion:nil];
+    SGTabEditor *editor = [SGTabEditor new];
+    editor.initialEntry = path.section == 0 ? _presets[(NSUInteger)path.row] : nil;
+    __weak typeof(self) weakSelf = self;
+    editor.saved = ^(NSDictionary *entry) {
+        appendTab(entry);
+        [weakSelf.navigationController popViewControllerAnimated:YES];
+    };
+    UINavigationController *sheet = [[UINavigationController alloc] initWithRootViewController:editor];
+    sheet.modalPresentationStyle = UIModalPresentationPageSheet;
+    sheet.sheetPresentationController.detents = @[UISheetPresentationControllerDetent.mediumDetent, UISheetPresentationControllerDetent.largeDetent];
+    [self presentViewController:sheet animated:YES completion:nil];
 }
 
 @end

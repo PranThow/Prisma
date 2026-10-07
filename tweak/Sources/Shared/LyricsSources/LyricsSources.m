@@ -148,7 +148,7 @@ NSArray<SGLyricsProvider *> *SGLyricsAllProviders(void) {
             provider.detail = detail;
             // A source that matches by Spotify's own track id has everything it needs from the
             // start; the rest wait for the player to name the track before they can search.
-            provider.needsName = ![key isEqualToString:@"musixmatch"];
+            provider.needsName = ![key isEqualToString:@"musixmatch"] && ![key isEqualToString:@"spicy"];
             provider.ask = ask;
             return provider;
         };
@@ -158,6 +158,7 @@ NSArray<SGLyricsProvider *> *SGLyricsAllProviders(void) {
             make(@"unison", @"Unison", @"Hand-timed, few tracks", SGUnisonAsk),
             make(@"netease", @"NetEase", @"Word timing, censored", SGNetEaseAsk),
             make(@"lrclib", @"LRCLIB", @"Line timing, open fallback", SGLrcLibAsk),
+            make(@"spicy", @"Spicy Lyrics", @"Publishable key required", SGSpicyLyricsAsk),
         ];
     });
     return all;
@@ -194,7 +195,7 @@ void SGLyricsSetOrder(NSArray<NSString *> *keys) {
 }
 
 BOOL SGLyricsEnabled(void) {
-    return SGLyricsOrder().count > 0;
+    return !SGFlag(SGKeyExternalLyricsReplacement, NO) && SGLyricsOrder().count > 0;
 }
 
 #pragma mark - what is known about the track
@@ -230,6 +231,8 @@ static void learnFrom(SGLyricsQuery *query, SGLyricsResult *result) {
 
 // Main queue only, except sg_missing and sg_credits.
 static NSMutableDictionary<NSString *, id> *sg_kept;
+static NSMutableDictionary<NSString *, NSDate *> *sg_keptAt;
+static NSMutableDictionary<NSString *, NSAttributedString *> *sg_attribution;
 static NSMutableDictionary<NSString *, NSMutableArray *> *sg_waiting;
 static NSMutableSet<NSString *> *sg_missing;
 static NSMutableDictionary<NSString *, NSString *> *sg_credits;
@@ -305,11 +308,18 @@ static void finish(SGLyricsWalk *walk) {
     SGLyricsResult *merged = walk.merged;
     NSString *trackID = query.trackID;
     SGLyricsResult *lyrics = merged.karaokeLines.count || merged.texts.count ? merged : nil;
+    @synchronized (sg_credits) {
+        if (!sg_attribution) sg_attribution = [NSMutableDictionary dictionary];
+        if (sg_attribution.count >= kKeptTracks) [sg_attribution removeAllObjects];
+        sg_attribution[trackID] = lyrics.attribution;
+    }
     BOOL everyoneAsked = !walk.passedOver.count;
     BOOL failed = atomic_load(&sg_failures) != walk.failuresAtStart;
     if (lyrics || (everyoneAsked && !failed) || merged.instrumental) {
-        if (sg_kept.count >= kKeptTracks) [sg_kept removeAllObjects];
+        if (!sg_keptAt) sg_keptAt = [NSMutableDictionary dictionary];
+        if (sg_kept.count >= kKeptTracks) { [sg_kept removeAllObjects]; [sg_keptAt removeAllObjects]; }
         sg_kept[trackID] = lyrics ?: NSNull.null;
+        sg_keptAt[trackID] = NSDate.date;
         if (!lyrics) {
             @synchronized (sg_missing) { [sg_missing addObject:trackID]; }
         }
@@ -367,13 +377,14 @@ static void step(SGLyricsWalk *walk) {
         if (betterLines(merged, fresh)) {
             merged.karaokeLines = fresh.karaokeLines;
             merged.wordTimed = fresh.wordTimed;
-            merged.provider = provider.name;
+            merged.provider = fresh.provider ?: provider.name;
+            merged.attribution = fresh.attribution;
         }
         if (betterTexts(merged, fresh)) {
             merged.starts = fresh.starts;
             merged.texts = fresh.texts;
             merged.synced = fresh.synced;
-            if (!merged.provider) merged.provider = provider.name;
+            if (!merged.provider) merged.provider = fresh.provider ?: provider.name;
         }
         step(walk);
     });
@@ -413,6 +424,11 @@ void SGLyricsFetch(NSString *trackID, void (^done)(SGLyricsResult *result)) {
             return;
         }
         id kept = sg_kept[trackID];
+        if (kept && -[sg_keptAt[trackID] timeIntervalSinceNow] >= 86400) {
+            [sg_kept removeObjectForKey:trackID]; [sg_keptAt removeObjectForKey:trackID];
+            @synchronized (sg_missing) { [sg_missing removeObject:trackID]; }
+            kept = nil;
+        }
         if (kept) {
             done(kept == NSNull.null ? nil : kept);
             return;
@@ -506,6 +522,15 @@ NSString *SGLyricsCreditFor(NSString *trackID) {
     @synchronized (sg_credits) { return trackID ? sg_credits[trackID] : nil; }
 }
 
+NSAttributedString *SGLyricsAttributionFor(NSString *trackID) {
+    setUp();
+    if (!trackID) return nil;
+    @synchronized (sg_credits) {
+        return sg_attribution[trackID] ?: SGKaraokeLinesForTrack(trackID).firstObject.sourceAttribution;
+    }
+}
+NSString *const SGLyricsCreditDidChange = @"SGLyricsCreditDidChange";
+
 void SGLyricsSetCredit(NSString *trackID, NSString *name) {
     setUp();
     if (!trackID.length) return;
@@ -513,6 +538,9 @@ void SGLyricsSetCredit(NSString *trackID, NSString *name) {
         if (sg_credits.count >= kKeptTracks) [sg_credits removeAllObjects];
         sg_credits[trackID] = name ?: @"Spotify";
     }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [NSNotificationCenter.defaultCenter postNotificationName:SGLyricsCreditDidChange object:trackID];
+    });
 }
 
 // Once, at launch: the keys Musixmatch owned alone become an order, so the Lyrics page opens on what

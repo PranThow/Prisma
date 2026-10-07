@@ -33,7 +33,7 @@
 #import <pthread.h>
 #import <stdatomic.h>
 #import "Core/SGCore.h"
-#import "Core/SGRebind.h"
+#import "Core/SGAudioRouting.h"
 #import "Haptics.h"
 #import "SGMusicAnalyzer.h"
 
@@ -93,15 +93,34 @@ static double loadDouble(atomic_uint_fast64_t *slot) {
 
 #pragma mark - the render thread
 
-static SGMusicAnalyzer sg_analyzer;
-static float sg_mono[kMonoFrames];
+static atomic_flag sg_eventWriter = ATOMIC_FLAG_INIT;
+typedef struct {
+    AudioUnit output;
+    uint64_t layout;
+    double rate, analyzedRate;
+    unsigned analyzedGeneration;
+    SGMusicAnalyzer analyzer;
+    float mono[kMonoFrames];
+} HapticOutput;
+static HapticOutput sg_outputs[16];
+static HapticOutput *outputFor(AudioUnit unit, BOOL create) {
+    HapticOutput *empty = NULL;
+    for (unsigned i = 0; i < 16; i++) {
+        if (sg_outputs[i].output == unit) return &sg_outputs[i];
+        if (!sg_outputs[i].output && !empty) empty = &sg_outputs[i];
+    }
+    if (create && empty) empty->output = unit;
+    return create ? empty : NULL;
+}
 
 static void pushEvent(const SGMusicEvent *event, void *context) {
+    if (atomic_flag_test_and_set_explicit(&sg_eventWriter, memory_order_acquire)) return;
     unsigned head = atomic_load_explicit(&sg_head, memory_order_relaxed);
     unsigned tail = atomic_load_explicit(&sg_tail, memory_order_relaxed);
-    if (head - tail >= kRingSize) return;
+    if (head - tail >= kRingSize) { atomic_flag_clear_explicit(&sg_eventWriter, memory_order_release); return; }
     sg_ring[head & (kRingSize - 1)] = *event;
-    atomic_store_explicit(&sg_head, head + 1, memory_order_relaxed);
+    atomic_store_explicit(&sg_head, head + 1, memory_order_release);
+    atomic_flag_clear_explicit(&sg_eventWriter, memory_order_release);
 }
 
 static inline float sampleAt(const void *data, UInt32 index, UInt32 bytes, BOOL isFloat, UInt32 fraction) {
@@ -122,7 +141,9 @@ static OSStatus rendered(void *refCon, AudioUnitRenderActionFlags *flags, const 
     if (!atomic_load_explicit(&sg_listening, memory_order_relaxed)) return noErr;
     if (*flags & kAudioUnitRenderAction_OutputIsSilence) return noErr;
 
-    uint64_t layout = atomic_load_explicit(&sg_layout, memory_order_relaxed);
+    HapticOutput *output = outputFor(refCon, NO);
+    if (!output) return noErr;
+    uint64_t layout = output->layout;
     UInt32 formatFlags = (UInt32)layout, channels = (UInt32)(layout >> 32) & 0xffff, bytes = (UInt32)(layout >> 48);
     BOOL isFloat = (formatFlags & kAudioFormatFlagIsFloat) != 0;
     BOOL split = (formatFlags & kAudioFormatFlagIsNonInterleaved) != 0;
@@ -137,15 +158,13 @@ static OSStatus rendered(void *refCon, AudioUnitRenderActionFlags *flags, const 
         return noErr;
     }
 
-    double sampleRate = loadDouble(&sg_sampleRateBits);
-    static double analyzedRate;
-    static unsigned analyzedGeneration;
+    double sampleRate = output->rate;
     unsigned generation = atomic_load_explicit(&sg_generation, memory_order_relaxed);
     if (sampleRate <= 0) return noErr;
-    if (sampleRate != analyzedRate || generation != analyzedGeneration) {
-        SGMusicAnalyzerReset(&sg_analyzer, sampleRate, 1 / sg_secondsPerTick);
-        analyzedRate = sampleRate;
-        analyzedGeneration = generation;
+    if (sampleRate != output->analyzedRate || generation != output->analyzedGeneration) {
+        SGMusicAnalyzerReset(&output->analyzer, sampleRate, 1 / sg_secondsPerTick);
+        output->analyzedRate = sampleRate;
+        output->analyzedGeneration = generation;
     }
     atomic_store_explicit(&sg_lastFrames, frames, memory_order_relaxed);
 
@@ -153,16 +172,16 @@ static OSStatus rendered(void *refCon, AudioUnitRenderActionFlags *flags, const 
     const void *left = data->mBuffers[0].mData, *right = split && channels > 1 ? data->mBuffers[1].mData : left;
     UInt32 stride = split ? 1 : channels, rightOffset = !split && channels > 1 ? 1 : 0;
 
-    uint64_t hostTime = (timestamp->mFlags & kAudioTimeStampHostTimeValid) ? timestamp->mHostTime : mach_absolute_time();
+    uint64_t hostTime = (timestamp && (timestamp->mFlags & kAudioTimeStampHostTimeValid)) ? timestamp->mHostTime : mach_absolute_time();
     unsigned headBefore = atomic_load_explicit(&sg_head, memory_order_relaxed);
     for (UInt32 done = 0; done < frames;) {
         UInt32 count = MIN(frames - done, (UInt32)kMonoFrames);
         for (UInt32 i = 0; i < count; i++) {
             UInt32 at = (done + i) * stride;
-            sg_mono[i] = 0.5f * (sampleAt(left, at, bytes, isFloat, fraction) + sampleAt(right, at + rightOffset, bytes, isFloat, fraction));
+            output->mono[i] = 0.5f * (sampleAt(left, at, bytes, isFloat, fraction) + sampleAt(right, at + rightOffset, bytes, isFloat, fraction));
         }
         uint64_t chunkTime = hostTime + (uint64_t)(done / sampleRate / sg_secondsPerTick);
-        SGMusicAnalyzerProcess(&sg_analyzer, sg_mono, count, chunkTime, pushEvent, NULL);
+        SGMusicAnalyzerProcess(&output->analyzer, output->mono, count, chunkTime, pushEvent, NULL);
         done += count;
     }
     if (atomic_load_explicit(&sg_head, memory_order_relaxed) != headBefore) dispatch_semaphore_signal(sg_wake);
@@ -171,7 +190,6 @@ static OSStatus rendered(void *refCon, AudioUnitRenderActionFlags *flags, const 
 
 #pragma mark - the output unit
 
-static OSStatus (*sg_startOutput)(AudioUnit unit);
 
 static NSString *fourCC(UInt32 code) {
     char text[5] = {(char)(code >> 24), (char)(code >> 16), (char)(code >> 8), (char)code, 0};
@@ -216,30 +234,17 @@ static void readFormat(AudioUnit unit) {
     atomic_store(&sg_layout, (uint64_t)format.mFormatFlags | (uint64_t)(format.mChannelsPerFrame & 0xffff) << 32 | (uint64_t)bytes << 48);
 }
 
-// The hardware's format changing under a running unit (a route to a device at another rate).
-static void formatChanged(void *refCon, AudioUnit unit, AudioUnitPropertyID property, AudioUnitScope scope, AudioUnitElement element) {
-    if (property == kAudioUnitProperty_StreamFormat && scope == kAudioUnitScope_Output && element == 0) readFormat(unit);
-}
-
-static void listenTo(AudioUnit unit) {
-    AudioComponentDescription description = {0};
-    if (AudioComponentGetDescription(AudioComponentInstanceGetComponent(unit), &description) != noErr) return;
-    if (description.componentType != kAudioUnitType_Output || description.componentSubType != kAudioUnitSubType_RemoteIO) {
-        static int logged;
-        if (logged++ < 8) SGLog(@"music haptics: a started unit is not RemoteIO ('%@' '%@'), not listened to", fourCC(description.componentType), fourCC(description.componentSubType));
-        return;
-    }
-    AudioUnitRemoveRenderNotify(unit, rendered, NULL);
-    AudioUnitRemovePropertyListenerWithUserData(unit, kAudioUnitProperty_StreamFormat, formatChanged, NULL);
-    AudioUnitAddPropertyListener(unit, kAudioUnitProperty_StreamFormat, formatChanged, NULL);
+static void configureOutput(AudioUnit unit, bool restarted) {
+    HapticOutput *output = outputFor(unit, YES);
+    if (!output) return;
     readFormat(unit);
-    OSStatus status = AudioUnitAddRenderNotify(unit, rendered, NULL);
-    if (status != noErr) SGLog(@"music haptics: the render notify could not be added (%d)", (int)status);
+    output->layout = atomic_load(&sg_layout);
+    output->rate = output->layout ? loadDouble(&sg_sampleRateBits) : 0;
+    if (restarted) output->analyzedRate = 0;
 }
-
-static OSStatus startOutput(AudioUnit unit) {
-    if (unit) listenTo(unit);
-    return sg_startOutput(unit);
+static void disconnectOutput(AudioUnit unit) {
+    HapticOutput *output = outputFor(unit, NO);
+    if (output) memset(output, 0, sizeof *output);
 }
 
 #pragma mark - the player thread
@@ -539,7 +544,7 @@ void SGMusicHapticsSettingsChanged(void) {
     mach_timebase_info_data_t timebase;
     mach_timebase_info(&timebase);
     sg_secondsPerTick = (double)timebase.numer / timebase.denom / 1e9;
-    if (!SGRebindImport("AudioOutputUnitStart", startOutput, (void **)&sg_startOutput) || !sg_startOutput) {
+    if (!SGAudioRegister(SGAudioHaptics, configureOutput, rendered, disconnectOutput)) {
         SGLog(@"music haptics: Spotify does not import AudioOutputUnitStart, Music Haptics is inactive");
         return;
     }
