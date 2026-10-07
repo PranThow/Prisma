@@ -285,7 +285,9 @@ static UIColor *tintOf(CGImageRef image, UIColor *surface) {
             CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
             palette = [SGRPalette new];
             palette.edgeColor = edge;
-            palette.fieldColor = fieldColorFor(edge, ceiling);
+            CGFloat dominant[3];
+            UIColor *main = dominantColorOf(cg, dominant) ? [UIColor colorWithRed:toEncoded(dominant[0]) green:toEncoded(dominant[1]) blue:toEncoded(dominant[2]) alpha:1] : edge;
+            palette.fieldColor = fieldColorFor(main, ceiling);
             CGSize area = request.backdropSize;
             if (area.width > 0 && area.height > 0) {
                 size_t width = (size_t)kBackdropWidth, height = (size_t)MIN(kBackdropMaxHeight, round(kBackdropWidth * area.height / area.width));

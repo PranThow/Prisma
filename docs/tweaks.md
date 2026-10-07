@@ -95,6 +95,46 @@ Shared:
                   for it and the next, and the player's card-loading timeout flag is forced to its 5 s maximum while a
                   source is on
     LockScreenLyrics/ the line being sung in the system's now playing
+    AnimatedArtwork/ shared lock-screen artwork settings: an enable switch and a provider list, Spotify
+                  Canvas before Apple Music by default. Tap providers to enable or disable them and drag the
+                  enabled ones to change priority; an empty list stays empty. Unknown identifiers and
+                  duplicates are removed, malformed lists use the default order, and malformed enable
+                  values read off. Controls appear only on iOS 26 when MediaPlayer reports supported
+                  animated artwork keys; otherwise the page explains availability. These are preferences
+                  for artwork providers. SpotifyCanvasResolver.x follows Shared/Player's observer,
+                  including metadata arriving later for the same track. It resolves canvas.url video
+                  metadata first, then asks Spotify's Canvas protobuf service with the captured Spotify
+                  headers. Requests reject redirects; responses must match the current track and its
+                  generation. SpotifyCanvas.h exposes the current track URI and video URL plus a change
+                  notification, with no credentials attached. ArtworkVideo.h accepts an unauthenticated
+                  HTTPS clip and width/height ratio, returning a leased local file and JPEG preview on the
+                  main queue. Retain the result while using its file; cancel when its track changes. Each
+                  preparer replaces its previous request and suppresses stale completions. The shared
+                  pipeline respects Low Data Mode, rejects redirects, streams at most 32 MiB, limits
+                  clips to 60 seconds, and keeps a 128 MiB cache with leases protected from eviction.
+                  Matching shapes reuse the original file with its orientation metadata; other shapes
+                  apply orientation and center-crop through AVFoundation (exports capped at 64 MiB).
+                  Prepared shapes are reused; previews are generated locally. AnimatedArtworkPublisher.x
+                  connects Canvas to this preparer and iOS 26 MediaPlayer. It queries supported keys,
+                  prefers 3:4 and falls back to 1:1 when only square is supported. Each variant supplies
+                  a matching JPEG preview and a leased local video file, leaving other now-playing
+                  fields intact. Track, source, shape or enabled-provider changes cancel preparation,
+                  clear the previous artwork and invalidate old callbacks. Providers are tried in their configured
+                  order, including fallback after preparation fails.
+                  Late Canvas results restart fallback only when their priority can improve the current
+                  provider; otherwise they remain available if a higher-priority Apple request fails.
+                  Repeated notifications leave unchanged requests and successful artwork alone.
+                  AppleMusicArtworkResolver.m searches Apple albums using artistName and
+                  album_title metadata, independently of Spotify authorization (see Apple Music artwork below).
+                  Readiness republishes metadata with elapsed time advanced by the reported playback
+                  rate. Lock-screen lyrics refresh through their own original metadata and clock,
+                  so either hook order keeps both the lyric line and animated artwork. Restoring the
+                  artist between lines also advances elapsed time instead of resetting its anchor.
+                  Checks on macOS: sh harness/animated-artwork/check.sh (key selection, metadata
+                  preservation/clearing, preferences and mocked publisher ordering/failures/cancellation),
+                  sh harness/canvas/check.sh and
+                  sh harness/artwork-video/check.sh (resolution and prepared video geometry/cache), and
+                  sh harness/apple-music-artwork/check.sh (Apple matching, aspect selection and HLS parsing).
     Navigation/   the page transition fix (PageTransition.x) and opening a spotify: link (Links.x)
     Player/       the player's open and close announced (PlayerEvents.x), what the player is doing read through
                   one hook for every feature that wants it (PlayerState.x), the lock screen widget's flags, and in the
@@ -215,7 +255,8 @@ which makes every unset switch read off, so a reset is stock Spotify whatever sw
 A hook reads its switch when it runs (`SGEnabled`, `SGHidden`, `SGFlag` from Core/SGPrefs.h), so a
 change shows after Spotify restarts; the tab editor on the Navbar page is the exception and applies as soon as the bar lays
 out again, as are the Home gradient's colour, strength and height, but not the switch that turns it on, and Vibrations
-and Live Activity. The root page in `App/ModSettings.x` holds the Appearance card and links the page of each part of Spotify, and only the stored look's.
+and Live Activity, and animated lock-screen artwork's enable switch and provider order.
+The root page in `App/ModSettings.x` holds the Appearance card and links the page of each part of Spotify, and only the stored look's.
 
 ## Make targets
 
@@ -280,11 +321,213 @@ registers in `Core/SGFlagForce.h`. A change shows after Spotify restarts.
 
 The tab editor on the Navbar page is the exception and applies as soon as the bar lays out again. It lists the tabs in the order
 the bar shows them: drag to reorder, tap to hide or show, and Add a tab puts a page of Spotify's or
-any `spotify:` link on the bar with one of Encore's own glyphs. Spotify's own tabs are kept by the
+any `spotify:` link on the bar with an Encore glyph or an SF Symbol. The editor has name and link
+fields, an icon preview and a searchable picker. Spotify's own tabs are kept by the
 name under their icon, so they can be hidden but never removed, and switching the app's language
 starts the order over. A tab of the mod's own opens its link through Spotify's link dispatcher, so it
-never lights up as the tab you are on. Hide labels, on the same page, leaves the glass bar with its
+keeps its selected state while its destination is open. Hide labels, on the same page, leaves the glass bar with its
 icons alone and applies straight away too.
+
+## Animated lock-screen artwork
+
+Prisma targets decrypted Spotify 9.1.78. Animated artwork requires iOS 26, an iPhone reporting
+either MediaPlayer's 3:4 or 1:1 animated artwork key, and a build with an iPhoneOS 26 or newer SDK.
+It works through `Shared/` in both Native and Redesigned UI; the redesign's own iOS 26 requirement
+does not enable artwork automatically. On earlier supported iOS versions (Native starts at 16.1),
+or without a recognized key, settings show an unavailable row and no artwork provider work starts.
+An unknown future key alone does not count as support.
+
+Open **Mod Settings > Player > Lock screen widget > Artwork**. Animated artwork defaults off.
+Artwork providers defaults to Spotify Canvas followed by Apple Music. Tap to enable/disable a
+provider; drag enabled providers to change priority. Disabling every provider keeps the list empty.
+The switch (`spotifyglass.animatedArtwork`) and order (`spotifyglass.animatedArtworkProviders`)
+are read live through defaults notifications; artwork changes apply immediately. Other lock-screen
+widget flags and the Lyrics page's Lock screen lyrics switch still require a restart.
+These artwork settings are separate from Native Player's Disable Canvas flag.
+
+The complete flow is:
+
+1. `App/Pages.m` exposes Shared Player's Lock screen widget page under either look.
+   `AnimatedArtworkSettings.m` checks OS/key support and the providers page persists validated IDs.
+2. Shared Player reports track identity and late metadata on the main queue. The Canvas resolver
+   uses valid `canvas.url` metadata first, otherwise Spotify's protobuf service with captured
+   Spotify headers. It cancels and clears on disablement or loss of supported keys, and retries
+   transient network/429/server failures at most twice after two and four seconds, even with
+   unchanged headers. Confirmed misses stay suppressed; changed headers reset the retry budget.
+   Apple resolution uses artist and album metadata independently of Spotify credentials, as described below.
+3. The publisher tries enabled providers in order, falling through after lookup, download,
+   validation, crop/export or preview failure. A late higher-priority Canvas may replace fallback;
+   a lower-priority Canvas does not displace a successful Apple result. Both missing leaves static
+   artwork. Pending requests, successful artwork and confirmed misses are left alone. An exhausted
+   failed chain gets at most two retries after five and thirty seconds, respecting any longer Apple
+   cooldown. Track, metadata, source, shape, token or provider-setting changes reset this budget.
+4. `ArtworkVideo.m` downloads unauthenticated HTTPS clips to leased local files, validates duration
+   and geometry, applies orientation and center-crops when needed, and generates a JPEG preview.
+   It limits downloads to 32 MiB, exports to 64 MiB and the cache to 128 MiB. Least recently used
+   files are evicted by modification time; leases and the current preparation's files are protected.
+   A full protected cache fails preparation and permits provider fallback. Local cache reuse can
+   work offline; Apple catalog URL lookup still needs a cached result or network access.
+5. `AnimatedArtworkPublisher.x` publishes one supported key (3:4 preferred, 1:1 fallback) without
+   replacing Spotify's title, artist, album, static cover or playback rate. Only Prisma-owned animated
+   objects are cleared; incoming Spotify animated objects survive disablement. Readiness advances the
+   elapsed position using the reported rate. Track/settings/shape changes invalidate callbacks,
+   including A → B → A. When lock-screen lyrics is enabled, its original metadata and clock drive
+   republication through both hooks; lyric lines and artist restoration should coexist with artwork.
+
+The system owns lock-screen layout and playback, including device rotation; Prisma does not draw
+an in-app video surface for this feature. Encoded video rotation is handled separately by
+AVFoundation. Low Data Mode blocks new video/Apple requests; Low Power Mode and Accessibility
+motion settings may suppress animation. Artwork availability is not guaranteed for every track,
+album edition, region or signing setup. Failed downloads are not retried by the video preparer;
+the publisher handles bounded retries and fallback. Failed Apple URLs are evicted from the
+resolver cache and get one refreshed lookup before falling back; successful URLs retain their
+six-hour cache lifetime.
+Actual protected-file access while locked and system rendering remain device checks.
+The publisher requires the external content identifier to match the current track URI, together
+with the title. If Spotify omits that identifier, Prisma withholds its clip because even a matching
+title, artist and album cannot prove track identity. The rapid-skip device test must include missing
+identifiers and same-title tracks. Generation checks protect old callbacks after a reported change.
+
+### Bug-fix validation (2026-10-06)
+
+The six README artwork bugs have source fixes and added regressions for dotted Canvas metadata,
+late results, Spotify artwork preservation, ambiguous track identity, bounded retries, Apple URL
+invalidation and refreshed preparation. The publisher respects Apple's request cooldown before
+retrying. All four native artwork harnesses are included in the macOS repository-checks job.
+Layer checks, build/harness shell syntax checks and `git diff --check` passed on Windows.
+All four native harness commands were attempted and stopped at `xcrun: command not found`.
+These regressions still need compilation and execution on macOS; the iOS build, both real
+MediaPlayer/lyrics hook orders and the iPhone checklist remain unverified.
+
+### Validation record (2026-10-05)
+
+Reviewed settings → Shared Player → both resolvers → video/cache → MediaPlayer → lock-screen lyrics
+against the source. Fixed Canvas work continuing while its provider was off, aligned settings with
+recognized publisher keys, and corrected restart text. No new Spotify classes or selectors were hooked.
+
+| Scenario | Source review / regression coverage | Execution in this Windows workspace |
+|---|---|---|
+| Native and Redesigned UI | Shared page and hooks have no UI-mode gate; App exposes the page to both | Layer check passed; both actual UIs untested |
+| Earlier iOS / unsupported keys | iOS 26 gates; key selection; resolver empty/unknown-key regressions | Source reviewed; OS/device execution pending |
+| Provider off, empty list, reorder | Preference validation; publisher stale completions; resolver cancellation and re-enable | Objective-C checks blocked by missing `xcrun` |
+| No artwork / failure fallback | Canvas parsing, Apple exact-edition misses, publisher lookup/preparation failures | Objective-C checks blocked by missing `xcrun` |
+| Expired authorization | Guest 401 refresh; added expired supplied-token/no-network and override removal checks; Spotify retries changed headers | Objective-C checks blocked; live authorization untested |
+| Failed downloads | HTTP, size, bad media and network errors; incomplete file cleanup | Objective-C checks blocked by missing `xcrun` |
+| Cache eviction | Reuse and lease counts; added eviction of an unleased file while leased clips survive | Objective-C checks blocked by missing `xcrun` |
+| Rotation | Existing four-angle geometry and rotated generated clip/crop checks | Objective-C checks blocked; phone rotation untested |
+| Rapid track changes | Existing A → B → A lookup, preparation and old system asset callbacks | Objective-C checks blocked by missing `xcrun` |
+| Lock-screen lyrics | Reviewed both hook orders; added publisher field/lyric preservation, playing/paused clock and mismatched URI checks | Mock checks blocked; real two-hook integration untested |
+
+`scripts/check-layers.sh`, shell syntax checks and `git diff --check` are local checks.
+The four existing commands below were attempted and stop at `xcrun: command not found`; new
+regressions are part of those commands and have **not** been compiled or executed here:
+
+```sh
+sh harness/animated-artwork/check.sh
+sh harness/canvas/check.sh
+sh harness/artwork-video/check.sh
+sh harness/apple-music-artwork/check.sh
+```
+
+No configured macOS host or iPhone test route was available in this session. The Theos/IPA build,
+Apple SDK compatibility and actual iPhone rendering are unverified. On macOS, run the four commands,
+then `env -u MAKELEVEL gmake -C tweak clean package` and `make install` with the documented signing
+setup. Complete the device checklist below before claiming integration validation. Do not treat
+source review or mocked callbacks as proof of system animation or both MediaPlayer hook orders.
+Release Please continues to manage version changes; this validation does not publish a release.
+
+## Apple Music artwork
+
+The provider sends only the track's artist and album names to Apple's US catalog. Name matching
+folds case, accents, width and punctuation; it requires the complete normalized artist name or
+the same complete set of explicitly credited collaborators. A lead-artist substring never matches.
+Exact album editions take priority, including an exact edition with no motion artwork. Only known
+deluxe, expanded, remaster and Single/EP suffixes allow an edition fallback; live, remix,
+re-recording and arbitrary subtitles stay distinct. Search follows up to four pages; a truncated
+search is an error rather than a confirmed miss. Tall motion is preferred for 3:4, square for 1:1;
+the other shape is a fallback that the existing preparer crops.
+
+Authorization options researched against Apple's documentation and public player on 2026-10-05:
+
+- Apple's supported [developer token method](https://developer.apple.com/documentation/applemusicapi/generating-developer-tokens)
+  uses an ES256 JWT signed with a MusicKit private key; tokens expire within six months.
+  A caller-owned token can be supplied through `spotifyglass.appleMusicDeveloperToken` in
+  Spotify's defaults, selecting `api.music.apple.com`. Prisma never stores or generates a private
+  signing key. An expired/rejected supplied token needs replacement by its owner.
+- [MusicKit automatic token management](https://developer.apple.com/documentation/musickit)
+  requires configuring the host app for MusicKit. This injected tweak does not assume that setup.
+  A [Music User Token](https://developer.apple.com/documentation/applemusicapi/user-authentication-for-musickit)
+  is for subscriber-specific data; this provider does not request one, sign in, or access a library.
+- With no supplied developer token, Prisma discovers the public player's `AMPWebPlay` guest JWT
+  from the current `music.apple.com/us/new` entry script and uses `amp-api.music.apple.com`.
+  Tokens are held in memory, rediscovered within five minutes of expiry and once after 401/403.
+  This guest route and `editorialVideo` extensions are **undocumented web-player interfaces**,
+  observed in Apple's [public player](https://music.apple.com/us/album/1989/1440935467) and its
+  current JavaScript. They can change or stop working. The documented
+  [catalog search API](https://developer.apple.com/documentation/applemusicapi/search)
+  does not promise these motion fields for caller-owned developer tokens.
+
+Every Apple request uses an isolated ephemeral session with cookies, credentials and URL caching
+disabled, Low Data Mode respected and redirects rejected. Only Apple catalog requests receive
+Apple authorization; CDN requests receive none. Spotify credentials are never read or forwarded.
+Responses are streamed with limits (HTML 4 MiB, JSON 2 MiB, script 8 MiB, playlists 256 KiB). Temporary
+network failures, 429 and 5xx retry at most twice with exponential backoff and `Retry-After`
+(seconds or HTTP date). Long delays produce a cooldown instead of holding the request open.
+Cancellation and replacement suppress stale completions. A bounded in-memory cache retains
+resolved clip URLs for six hours and confirmed search/no-motion misses for one hour; failures,
+malformed responses and unsupported playlists are not negative entries. Token-setting changes
+clear this cache. A restart clears the provider cache; prepared video files use the existing cache.
+
+The HLS resolver selects an AVC or hardware-supported HEVC, SDR, video-only variant up to 1920 pixels per side, prioritizing
+aspect ratio and then resolution. It accepts a finite VOD playlist containing one complete MP4,
+or an initialization map starting at byte zero followed by contiguous byte ranges in the **same**
+MP4. Apple's 1989 motion playlists were verified to use this second form. It passes that full
+unauthenticated HTTPS resource to `ArtworkVideo`, which validates, limits, leases and crops it.
+It rejects encrypted, live/incomplete, discontinuous, multi-resource segmented, MPEG-TS,
+unmapped byte-range, low-latency, variable-URI, alternate-media and nested-master playlists,
+unknown HLS tags, malformed ranges, off-CDN URLs and durations over 60 seconds. Errors are logged
+without tokens and fall through to the next enabled provider. No segment is mistaken for a clip.
+
+Run `sh harness/apple-music-artwork/check.sh` on macOS for matching, edition and shape selection,
+relative playlist URLs, supported single-file ranges and the unsupported forms above. Mocked
+requests check credential isolation, authorization refresh, caches, rate limits and cancellation.
+The iOS build and actual publishing still require macOS/device checks.
+
+## Animated lock-screen artwork device checks
+
+The Objective-C harnesses and the Theos build require macOS and Apple's tools; Windows can
+check documentation, diffs and layer imports but cannot validate the iOS build. The publisher
+uses Apple's [animated artwork API](https://developer.apple.com/documentation/mediaplayer/providing-animated-artwork-for-media-items).
+The following integration checks require an actual iPhone running iOS 26 with Spotify 9.1.78:
+
+- Enable Animated artwork with Spotify enabled. Lock the phone on a Canvas track and verify
+  animation, a correctly shaped preview and static artwork when there is no Canvas. Confirm
+  supported keys on the device; test square on a device reporting square without tall support.
+- Enable Apple Music alone and try an album with motion artwork (for example, Taylor Swift's 1989),
+  an exact edition without motion, and unrelated artists with similar album names. Test provider
+  reordering and fallback, late album metadata, offline access, guest token rejection/expiry and 429.
+  Inspect requests to confirm no Spotify authorization or Music User Token goes to Apple/CDNs.
+- With lock-screen lyrics both off and on, wait for a download while playing, paused and after
+  seeking. Readiness must preserve the position, rate, title, album, static cover and lyric line.
+  Check instrumental breaks restore the artist without moving the scrubber backwards. Repeat
+  with a diagnostic build reversing the two MediaPlayer hooks' initialization order.
+- Skip rapidly A → B → A during downloads/exports, including tracks with the same title;
+  complete an old request after skipping. No previous clip or stale asset callback may appear.
+  Disable artwork, disable Spotify in the provider list and empty the list while a request is
+  pending and while artwork is visible; the clip must clear and late completions must stay ignored.
+- Check late Canvas metadata, offline/download failures, local-file access while locked and cache
+  lease retention. Test Low Power Mode, Low Data Mode, Reduce Motion and Auto-Play Animated Images
+  off: the system may show preview/static artwork instead of animation. Repeat in both Prisma looks.
+- Rotate the phone while artwork is visible and while preparation is pending; verify preview/video
+  orientation and crop, with no old shape resurfacing. Fill the cache past its limit and confirm
+  unleased files are evicted while the system can still read a leased clip. If all space is protected,
+  verify fallback/static artwork without a broken file URL.
+- On iOS 16.1–25 with artwork preferences imported as enabled, verify the unavailable row, no
+  artwork provider requests and normal static artwork/lyrics. On iOS 26 with no recognized supported
+  key, verify the same behavior. Test an expired caller-supplied Apple token separately from guest
+  token expiry: it must fall back until replaced or removed, without silently using guest credentials.
+
+These are required device checks, not results established by the command-line harnesses.
 
 ## Adding a feature
 

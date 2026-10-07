@@ -545,6 +545,7 @@ static void applyHeader(UIView *layout) {
     }
     CGFloat reach = rest - SGRHeaderInfoBottom - [info contentHeightForWidth:info.bounds.size.width] + SGRHeaderInfoTitleRise;
     if (cover) applyHero(layout, cover, plane, block, reach, stretch);
+    SGRFinishEntityPage(SGRPlaylistPageOf(layout), info.contentReady && SGREntityArtworkReady(layout));
 }
 
 // The content layout of the page `root` belongs to, kept weakly on it: the header lays out on every step of

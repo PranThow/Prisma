@@ -10,6 +10,8 @@ NSString *const SGNavbarHidden = @"hidden";
 static NSString *const kNavbarLayout = @"spotifyglass.navbar.layout";
 static NSString *const kNavbarStock = @"spotifyglass.navbar.stock";
 
+static NSArray *sg_layoutCache, *sg_stockCache;
+
 // Only property list types go in, so a corrupt read cannot be anything but an array of dictionaries.
 static NSArray *listOfKind(NSString *key, Class kind) {
     NSArray *list = [NSUserDefaults.standardUserDefaults arrayForKey:key];
@@ -18,17 +20,21 @@ static NSArray *listOfKind(NSString *key, Class kind) {
 }
 
 NSArray<NSDictionary *> *SGNavbarLayout(void) {
-    return listOfKind(kNavbarLayout, NSDictionary.class);
+    if (!sg_layoutCache) sg_layoutCache = [listOfKind(kNavbarLayout, NSDictionary.class) copy];
+    return sg_layoutCache;
 }
 
 void SGSetNavbarLayout(NSArray<NSDictionary *> *layout) {
-    [NSUserDefaults.standardUserDefaults setObject:layout ?: @[] forKey:kNavbarLayout];
+    sg_layoutCache = [layout ?: @[] copy];
+    [NSUserDefaults.standardUserDefaults setObject:sg_layoutCache forKey:kNavbarLayout];
 }
 
 NSArray<NSString *> *SGNavbarStock(void) {
-    return listOfKind(kNavbarStock, NSString.class);
+    if (!sg_stockCache) sg_stockCache = [listOfKind(kNavbarStock, NSString.class) copy];
+    return sg_stockCache;
 }
 
 void SGSetNavbarStock(NSArray<NSString *> *stock) {
-    [NSUserDefaults.standardUserDefaults setObject:stock ?: @[] forKey:kNavbarStock];
+    sg_stockCache = [stock ?: @[] copy];
+    [NSUserDefaults.standardUserDefaults setObject:sg_stockCache forKey:kNavbarStock];
 }

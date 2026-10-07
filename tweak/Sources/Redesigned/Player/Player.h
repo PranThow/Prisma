@@ -25,12 +25,17 @@
 
 @class SGRArtworkField;
 
-// The artwork's colours moving behind the player (on until switched off), or the blurred artwork held
-// still; the row is on the Now playing page (Redesigned/NowPlayingBar/NowPlayingBarSettings.m).
+// Legacy preference, migrated to Fluid cover without overwriting a stored new value.
 #define SGRKeyPlayerMotion @"spotifyglass.redesign.player.movingBackground"
+#define SGRKeyPlayerFluid @"spotifyglass.redesign.player.fluidBackground"
+#define SGRKeyPlayerVideo @"spotifyglass.redesign.player.videoBackground"
+#define SGRKeyPlayerVideoProviders @"spotifyglass.redesign.player.videoProviders"
+NSArray<NSString *> *SGRPlayerVideoOrder(void);
+UIViewController *SGRPlayerBackgroundSettingsPage(void);
 
 // The field behind the player, nil until the player has laid out once (PlayerField.x).
 SGRArtworkField *SGRPlayerField(void);
+SGRArtworkField *SGRPlayerFieldIn(UIView *plane);
 
 #pragma mark - the cover (PlayerArtwork.x)
 
@@ -45,6 +50,8 @@ CGRect SGRPlayerArtworkAreaIn(UIView *host);
 // Hides the cover on screen and its shadow, or shows them again, for a stand-in to fly in its place
 // (PlayerMorph.x).
 void SGRPlayerSetCoverHidden(BOOL hidden);
+void SGRPlayerSetVideoActive(BOOL active);
+BOOL SGRPlayerVideoShowing(void);
 
 #pragma mark - the lyrics in the player (PlayerLyrics.x)
 

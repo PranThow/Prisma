@@ -19,7 +19,12 @@
 extern const CGFloat SGRHeaderInfoBottom;     // 14, under the content
 extern const CGFloat SGRHeaderInfoTitleRise;  // 56, of the content over the picture
 
+// Coordinated entity reveal has a one-second loading fallback; adds a passive bottom fade.
+void SGRFinishEntityPage(UIView *page, BOOL ready);
+BOOL SGREntityArtworkReady(UIView *root);
+
 @interface SGRHeaderInfo : UIView
+@property (nonatomic, readonly) BOOL contentReady;
 // YES when anything shown changed. nil or empty hides that line.
 - (BOOL)showTitle:(NSString *)title creator:(NSString *)creator length:(NSString *)length about:(NSString *)about;
 // Spotify's own control behind the creator line -- the album's artist row, the playlist's collaborators

@@ -8,6 +8,7 @@
 #import "Core/SGCore.h"
 #import "LockScreenLyrics.h"
 #import "Shared/Lyrics/Lyrics.h"
+#import "Shared/LyricsSources/LyricsSources.h"
 #import "Headers/SPTPlayer.h"
 
 static const NSTimeInterval kTick = 0.25;
@@ -66,6 +67,8 @@ static NSString *lineFor(NSDictionary *info, double elapsed) {
     // The player's track can lag behind the now playing info; its lyrics would then be another song's.
     if (![state.track.trackTitle isEqualToString:info[MPMediaItemPropertyTitle]]) return nil;
     NSString *trackID = SGKaraokePlayingTrack();
+    // The system's artist field cannot display the API's mandatory contributor links.
+    if (SGLyricsAttributionFor(trackID)) return nil;
     NSArray<SGKaraokeLine *> *lines = SGKaraokeLinesForTrack(trackID);
     if (!lines) {
         SGKaraokeRequestLyrics(trackID);
@@ -92,22 +95,38 @@ static NSDictionary *withLine(NSDictionary *info, NSString *line, double elapsed
     return shown;
 }
 
-static void tick(void) {
+static void refresh(BOOL force) {
     NSDictionary *info;
     CFAbsoluteTime reportedAt;
     @synchronized (sg_lock) {
         info = sg_spotifyInfo;
         reportedAt = sg_spotifyInfoAt;
     }
-    if (!info[MPNowPlayingInfoPropertyElapsedPlaybackTime]) return;
+    if (!info[MPNowPlayingInfoPropertyElapsedPlaybackTime]) {
+        if (force) {
+            sg_resending = YES;
+            MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo = info;
+            sg_resending = NO;
+        }
+        return;
+    }
     CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
     double elapsed = elapsedAt(info, reportedAt, now);
     NSString *line = lineFor(info, elapsed);
-    if (line == sg_shownLine || [line isEqualToString:sg_shownLine]) return;
+    if (!force && (line == sg_shownLine || [line isEqualToString:sg_shownLine])) return;
     sg_shownLine = line;
     sg_resending = YES;
-    MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo = line ? withLine(info, line, elapsed) : info;
+    NSMutableDictionary *current = [info mutableCopy];
+    current[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(elapsed);
+    MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo = line ? withLine(current, line, elapsed) : current;
     sg_resending = NO;
+}
+
+BOOL SGLockScreenLyricsIsRepublishing(void) { return NSThread.isMainThread && sg_resending; }
+BOOL SGRefreshLockScreenLyrics(void) {
+    if (!sg_lock) return NO;
+    refresh(YES);
+    return YES;
 }
 
 // Main thread, as everything the timer touches is.
@@ -118,7 +137,7 @@ static void setTicking(BOOL on) {
         sg_timer = nil;
         return;
     }
-    sg_timer = [NSTimer timerWithTimeInterval:kTick repeats:YES block:^(NSTimer *t) { tick(); }];
+    sg_timer = [NSTimer timerWithTimeInterval:kTick repeats:YES block:^(NSTimer *t) { refresh(NO); }];
     [NSRunLoop.mainRunLoop addTimer:sg_timer forMode:NSRunLoopCommonModes];
 }
 

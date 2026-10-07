@@ -14,6 +14,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRRepaint.h"
 #import "NowPlayingBar.h"
+#import "Redesigned/Navbar/Navbar.h"
 
 static const CGFloat kCardRadius = 24;
 static char kGlassKey;
@@ -21,6 +22,8 @@ static __weak UIVisualEffectView *sg_cardGlass;
 static __weak UIView *sg_cardArtwork;
 
 CGRect SGRNowPlayingCardFrameIn(UIView *host, CGFloat *radius) {
+    CGRect accessory = SGRIntegratedPlayerFrameIn(host);
+    if (!CGRectIsNull(accessory)) { if (radius) *radius = 24; return accessory; }
     UIVisualEffectView *glass = sg_cardGlass;
     if (!glass.superview || !glass.window || !host) return CGRectNull;
     if (radius) *radius = MIN(kCardRadius, glass.bounds.size.height / 2);
@@ -28,6 +31,8 @@ CGRect SGRNowPlayingCardFrameIn(UIView *host, CGFloat *radius) {
 }
 
 CGRect SGRNowPlayingArtworkFrameIn(UIView *host) {
+    CGRect accessory = SGRIntegratedPlayerArtworkFrameIn(host);
+    if (!CGRectIsNull(accessory)) return accessory;
     UIView *artwork = sg_cardArtwork;
     if (!artwork.window || !host) return CGRectNull;
     return [host convertRect:artwork.bounds fromView:artwork];
@@ -95,6 +100,11 @@ static void styleNowPlayingBar(UIViewController *container) {
     UIViewController *barVC = container.childViewControllers.firstObject;
     UIView *bar = barVC.viewIfLoaded ?: container.view;
     sgr_nowPlayingRoot = bar;
+    static BOOL integrated;
+    static dispatch_once_t integratedOnce;
+    dispatch_once(&integratedOnce, ^{ integrated = SGHidden(SGRKeyIntegratedPlayer); });
+    if (integrated) { bar.alpha = 0; bar.userInteractionEnabled = NO; SGRSetIntegratedPlayerHost(container.view); }
+
 
     UIView *card = sgr_nowPlayingCard;
     if (!card || !SGIsInside(card, bar)) card = sgr_nowPlayingCard = detectColoredCard(bar);
@@ -118,6 +128,7 @@ static void styleNowPlayingBar(UIViewController *container) {
     // took the system's light glass on a phone in light mode (TabBar.x).
     if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     sg_cardGlass = glass;
+    glass.hidden = integrated;
     glass.frame = frame;
     SGShapeGlass(glass, radius, NO);
 

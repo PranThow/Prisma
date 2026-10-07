@@ -13,6 +13,12 @@ CFTimeInterval SGPlayerTransitionEnds(void) { return 0; }
 void SGRPlayFeedback(NSInteger feedback) {}
 void SGPlayFeedback(NSInteger feedback) {}   // the name it has had since Haptics moved to Shared
 NSString *SGLyricsCreditFor(NSString *trackID) { return @"the harness"; }
+NSAttributedString *SGLyricsAttributionFor(NSString *trackID) {
+    if (![NSUserDefaults.standardUserDefaults boolForKey:@"mandatoryCredit"]) return nil;
+    NSMutableAttributedString *credit = [[NSMutableAttributedString alloc] initWithString:@"Lyrics: provider · uploader · timing maker"];
+    [credit addAttribute:NSLinkAttributeName value:@"https://github.com/PranThow/Prisma" range:NSMakeRange(8, 8)];
+    return credit;
+}
 // -translateTo es: the language the Lyrics page would ask translations for.
 NSString *SGLyricsTranslationLanguage(void) { return [NSUserDefaults.standardUserDefaults stringForKey:@"translateTo"]; }
 

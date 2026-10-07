@@ -7,6 +7,7 @@ static BOOL readVarint(const uint8_t *bytes, NSUInteger length, NSUInteger *at, 
     uint64_t value = 0;
     for (int shift = 0; *at < length && shift < 64; shift += 7) {
         uint8_t byte = bytes[(*at)++];
+        if (shift == 63 && (byte & 0xfe)) return NO;
         value |= (uint64_t)(byte & 0x7f) << shift;
         if (!(byte & 0x80)) {
             *out = value;
@@ -32,7 +33,7 @@ NSMutableArray<SGPBField *> *SGPBParse(NSData *data) {
     NSMutableArray<SGPBField *> *fields = [NSMutableArray array];
     while (at < length) {
         uint64_t key, value;
-        if (!readVarint(bytes, length, &at, &key) || !(key >> 3)) return nil;
+        if (!readVarint(bytes, length, &at, &key) || !(key >> 3) || (key >> 3) > 0x1fffffff) return nil;
         SGPBField *field = [SGPBField new];
         field.number = (uint32_t)(key >> 3);
         field.wire = key & 7;

@@ -1030,7 +1030,7 @@ typedef struct {
     NSInteger start, end, line;
 } SGRKaraokeBreak;
 
-@interface SGRKaraokeView () <UIScrollViewDelegate>
+@interface SGRKaraokeView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
 @end
 
 @implementation SGRKaraokeView {
@@ -1067,7 +1067,7 @@ typedef struct {
     CGFloat _builtWidth;
     BOOL _showing;
     CAGradientLayer *_fade;
-    UILabel *_credit;
+    UITextView *_credit;
     CGFloat _fontSize, _margin, _lineGap, _blurPerLine, _maxBlur;
     BOOL _crediting;   // the switch is read once: the page asks for the source on every frame until it has one
     double _clock;
@@ -1104,15 +1104,24 @@ typedef struct {
     _scroll.scrollsToTop = NO;
     _scroll.delegate = self;
     [self addSubview:_scroll];
-    _credit = [[UILabel alloc] initWithFrame:CGRectZero];
+    _credit = [[UITextView alloc] initWithFrame:CGRectZero];
+    _credit.backgroundColor = UIColor.clearColor;
+    _credit.editable = NO;
+    _credit.selectable = YES;
+    _credit.scrollEnabled = NO;
+    _credit.textContainerInset = UIEdgeInsetsZero;
+    _credit.textContainer.lineFragmentPadding = 0;
+    _credit.linkTextAttributes = @{NSForegroundColorAttributeName:[UIColor colorWithWhite:1 alpha:.85], NSUnderlineStyleAttributeName:@(NSUnderlineStyleSingle)};
     _credit.font = [UIFont systemFontOfSize:kCreditSize weight:UIFontWeightSemibold];
     _credit.textColor = [UIColor colorWithWhite:1 alpha:kCreditAlpha];
     _credit.hidden = YES;
     _crediting = SGFlag(SGKeyLyricsCredit, NO);
     _sweepsEstimates = SGFlag(SGKeyLyricsSimulateWords, NO);
     [self addSubview:_credit];
-    [self addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapped:)]];
-    [self addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(held:)]];
+    UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapped:)];
+    UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(held:)];
+    tap.delegate = self; hold.delegate = self;
+    [self addGestureRecognizer:tap]; [self addGestureRecognizer:hold];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(playerTransitionChanged:) name:SGPlayerTransitionNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(playerTransitionChanged:) name:SGPlayerTransitionEndedNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(restyle) name:SGRLyricsTextDidChangeNotification object:nil];
@@ -1127,6 +1136,10 @@ typedef struct {
     [NSNotificationCenter.defaultCenter removeObserver:self];
     free(_spans);
     free(_breaks);
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gesture shouldReceiveTouch:(UITouch *)touch {
+    return ![touch.view isDescendantOfView:_credit] && ![touch.view isDescendantOfView:_extras];
 }
 
 - (void)tapped:(UITapGestureRecognizer *)tap {
@@ -1273,13 +1286,14 @@ typedef struct {
     [super layoutSubviews];
     [self alignFade];
     _scroll.contentSize = self.bounds.size;
-    [_credit sizeToFit];
-    _credit.frame = CGRectMake(_margin, self.bounds.size.height - _credit.bounds.size.height - kCreditBottom,
-                               _credit.bounds.size.width, _credit.bounds.size.height);
+    CGFloat creditLeft = _margin;
     if (_extras && !_extras.hidden) {
         _extras.frame = CGRectMake(_margin, self.bounds.size.height - kExtrasSide - kExtrasBottom, kExtrasSide, kExtrasSide);
-        _credit.center = CGPointMake(CGRectGetMaxX(_extras.frame) + kExtrasCreditGap + _credit.bounds.size.width / 2, _extras.center.y);
+        creditLeft = CGRectGetMaxX(_extras.frame) + kExtrasCreditGap;
     }
+    CGFloat creditWidth = MAX(0, self.bounds.size.width - creditLeft - _margin);
+    CGSize creditSize = [_credit sizeThatFits:CGSizeMake(creditWidth, CGFLOAT_MAX)];
+    _credit.frame = CGRectMake(creditLeft, self.bounds.size.height - creditSize.height - kCreditBottom, creditWidth, creditSize.height);
     if (_lines && self.bounds.size.width != _builtWidth) [self rebuild];
 }
 
@@ -1601,10 +1615,15 @@ typedef struct {
 }
 
 - (void)creditTo:(NSString *)source {
-    NSString *text = source.length && _crediting ? [NSString stringWithFormat:@"Lyrics from %@", source] : nil;
-    if (text == _credit.text || [text isEqualToString:_credit.text]) return;
-    _credit.text = text;
-    _credit.hidden = !_showing || !text.length;
+    NSAttributedString *required = SGLyricsAttributionFor(_track);
+    NSString *text = required.string ?: (source.length && _crediting ? [NSString stringWithFormat:@"Lyrics from %@", source] : @"");
+    NSMutableAttributedString *credit = required ? [required mutableCopy] : [[NSMutableAttributedString alloc] initWithString:text];
+    [credit addAttributes:@{NSFontAttributeName:_credit.font,
+        NSForegroundColorAttributeName:[UIColor colorWithWhite:1 alpha:required ? .8 : kCreditAlpha]}
+        range:NSMakeRange(0, credit.length)];
+    if ([_credit.attributedText isEqualToAttributedString:credit]) return;
+    _credit.attributedText = credit;
+    _credit.hidden = !_showing || !credit.length;
     [self setNeedsLayout];
 }
 
@@ -1669,7 +1688,7 @@ typedef struct {
     }
     [self setShowing:_tops != nil];
     // The source is settled a moment after the lines are, so it is asked for until it answers.
-    if (_crediting && _lines && !_credit.text.length) [self creditTo:SGLyricsCreditFor(track)];
+    if (_lines && !_credit.text.length) [self creditTo:SGLyricsCreditFor(track)];
     if (!_tops) return;
     [self alignFade];
     if (_plain) {

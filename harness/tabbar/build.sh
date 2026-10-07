@@ -18,8 +18,9 @@ xcrun -sdk iphonesimulator clang -target arm64-apple-ios17.0-simulator -fobjc-ar
     "$OUT"/gen/*.m \
     "$SRC"/Core/SGLog.m "$SRC"/Core/SGPrefs.m "$SRC"/Core/SGViewTree.m "$SRC"/Core/SGGlass.m \
     "$SRC"/Core/SGBackdrop.m "$SRC"/Core/SGFlagForce.m "$SRC"/Core/SGUIMode.m \
-    "$SRC"/Redesigned/Kit/SGRTokens.m \
-    -framework UIKit -framework QuartzCore -framework CoreGraphics -framework Foundation \
+    "$SRC"/Native/Navbar/NavbarLayout.m "$SRC"/Redesigned/Navbar/NavbarLayout.m \
+    "$SRC"/Redesigned/Kit/SGRTokens.m "$SRC"/Redesigned/Kit/SGRRestyle.m \
+    -framework UIKit -framework QuartzCore -framework CoreGraphics -framework Foundation -framework Symbols \
     -o "$OUT/TabBarHarness.app/TabBarHarness"
 
 # iOS 27 ends an app without a scene delegate at launch, so the scene is named here.

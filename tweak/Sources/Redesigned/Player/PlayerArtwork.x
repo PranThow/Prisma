@@ -7,9 +7,8 @@
 // corners and the scale: the tilt view's own transform is left to the tilt Spotify gives it when the
 // cover is inspected. The image clips, so the shadow is a plate of the Kit's behind it.
 //
-// The scale is identity while the player opens or closes: the bar morphs into a 354pt stand-in
-// (NowPlaying_ECMKit.MaskView, 01.txt:86) and the cover under it has to match where it lands. Once
-// the transition is over a paused cover springs down.
+// A paused cover keeps its scale while the player opens or closes. The morph measures that drawn
+// frame, so a transition never changes the paused artwork's size.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Player.h"
@@ -26,7 +25,7 @@ static NSMapTable<UIView *, UIView *> *sg_covers;
 
 static CGFloat currentScale(void) {
     SPTPlayerState *state = SGPlayerState();
-    if (!state.isPaused || SGRPlayerIsTransitioning()) return 1;
+    if (!state.isPaused) return 1;
     return SGRReduceMotion() ? kPausedScaleReduceMotion : kPausedScale;
 }
 
@@ -103,11 +102,26 @@ CGRect SGRPlayerArtworkAreaIn(UIView *host) {
 
 // The cover hidden for a stand-in, so the same one comes back if the list moved on meanwhile.
 static __weak UIView *sg_hiddenCover, *sg_hiddenPlate;
+static BOOL sg_videoActive, sg_coverStandIn;
+static void applyCoverVisibility(void);
+BOOL SGRPlayerVideoShowing(void) { return sg_videoActive; }
+void SGRPlayerSetVideoActive(BOOL active) {
+    if (sg_videoActive == active) return;
+    sg_videoActive = active;
+    [UIView animateWithDuration:SGRReduceMotion() ? 0 : .2 delay:0
+        options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+        animations:^{ applyCoverVisibility(); } completion:nil];
+}
 
 void SGRPlayerSetCoverHidden(BOOL hidden) {
+    sg_coverStandIn = hidden;
+    applyCoverVisibility();
+}
+static void applyCoverVisibility(void) {
     sg_hiddenCover.alpha = 1;
     sg_hiddenPlate.alpha = 1;
     sg_hiddenCover = sg_hiddenPlate = nil;
+    BOOL hidden = sg_coverStandIn || (sg_videoActive && !SGRPlayerLyricsOpen() && !SGRPlayerIsTransitioning());
     if (!hidden) return;
     UIView *tilt = showingTilt();
     UIView *cover = coverIn(tilt);
@@ -153,6 +167,7 @@ static void scaleEveryCover(BOOL animated) {
     plate.center = cover.center;
     // The same value an animation in flight is heading to, so a layout pass never cuts one short.
     scaleCover(tilt, currentScale());
+    if (sg_videoActive || sg_coverStandIn) applyCoverVisibility();
 
     static dispatch_once_t once;
     dispatch_once(&once, ^{ SGLog(@"redesign player: cover %@ rounded %.0f with a shadow plate, scale %.2f", NSStringFromClass(cover.class), SGRRadiusArtwork, currentScale()); });

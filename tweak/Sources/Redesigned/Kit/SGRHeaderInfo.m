@@ -33,6 +33,7 @@ static BOOL setText(UILabel *label, NSString *text) {
 
 @implementation SGRHeaderInfo {
     UILabel *_title, *_creator, *_length, *_about;
+    NSMutableArray<UIImageView *> *_faces;
     SGRMirrorButton *_shuffle, *_trailing;
     SGRPlayCapsule *_play;
     __weak UIView *_creatorLink;
@@ -40,6 +41,7 @@ static BOOL setText(UILabel *label, NSString *text) {
 
 - (instancetype)initWithFrame:(CGRect)frame {
     if (!(self = [super initWithFrame:frame])) return nil;
+    _faces = [NSMutableArray array];
     _title = infoLabel(self, SGRFont(UIFontTextStyleTitle2, UIFontWeightBold, UIContentSizeCategoryExtraLarge),
                        SGRPrimary(), 2, NSTextAlignmentCenter);
     _title.accessibilityTraits = UIAccessibilityTraitHeader;
@@ -90,6 +92,32 @@ static BOOL setText(UILabel *label, NSString *text) {
 // the text itself -- a tap either side of a short name belongs to the page under it, which a pull down
 // starts on. Spotify's own control stays concealed where it is and only fires.
 - (void)showCreatorLink:(UIView *)control {
+    NSMutableArray<UIImage *> *images = [NSMutableArray array];
+    SGForEachView(control, ^(UIView *view) {
+        if (![view isKindOfClass:UIImageView.class] || images.count >= 3) return;
+        UIImageView *image = (UIImageView *)view;
+        CGFloat width = image.bounds.size.width;
+        // Copy circular facepile images already supplied by the creator row, without network/model guesses.
+        BOOL circle = image.layer.cornerRadius >= width / 4 || image.superview.layer.cornerRadius >= width / 4;
+        if (width >= 16 && width <= 64 && fabs(width - image.bounds.size.height) < 2 && circle) {
+            if (image.image) [images addObject:image.image];
+            __weak SGRHeaderInfo *weakSelf = self;
+            SGRObserveImage(image, ^(UIImageView *updated) { SGRHeaderInfo *owner = weakSelf; if (owner) [owner showCreatorLink:owner->_creatorLink]; });
+        }
+    });
+    while (_faces.count < images.count) {
+        UIImageView *face = [UIImageView new];
+        face.contentMode = UIViewContentModeScaleAspectFill;
+        face.clipsToBounds = YES;
+        face.layer.cornerRadius = 10;
+        face.accessibilityElementsHidden = YES;
+        [_faces addObject:face]; [self addSubview:face];
+    }
+    for (NSUInteger i = 0; i < _faces.count; i++) {
+        _faces[i].image = i < images.count ? images[i] : nil;
+        _faces[i].hidden = i >= images.count;
+    }
+    [self setNeedsLayout];
     _creatorLink = control;
     BOOL live = control != nil;
     if (_creator.userInteractionEnabled == live) return;
@@ -106,6 +134,7 @@ static BOOL setText(UILabel *label, NSString *text) {
 // The creator line takes a touch only where its text is; everything else of the view is the page's.
 - (UIView *)sgr_creatorHit:(CGPoint)point {
     if (!_creator.userInteractionEnabled || _creator.hidden) return nil;
+    for (UIImageView *face in _faces) if (!face.hidden && CGRectContainsPoint(CGRectInset(face.frame, -8, -6), point)) return _creator;
     CGSize text = [_creator sizeThatFits:CGSizeMake(_creator.bounds.size.width, CGFLOAT_MAX)];
     CGRect frame = _creator.frame;
     CGRect word = CGRectInset(CGRectMake(round(CGRectGetMidX(frame) - text.width / 2), frame.origin.y,
@@ -145,6 +174,8 @@ static BOOL setText(UILabel *label, NSString *text) {
     if (_trailing.source) [_trailing feedFrom:_trailing.source];
 }
 
+- (BOOL)contentReady { return _title.text.length && !_play.hidden; }
+
 - (CGFloat)contentHeightForWidth:(CGFloat)width {
     CGFloat text = MAX(0, width - 2 * kSide), height = 0;
     UILabel *previous = nil;
@@ -174,6 +205,16 @@ static BOOL setText(UILabel *label, NSString *text) {
         y += height;
         previous = label;
     }
+    NSUInteger faceCount = 0;
+    for (UIImageView *face in _faces) if (!face.hidden) faceCount++;
+    if (faceCount && !_creator.hidden) {
+        CGFloat faceWidth = 20 + (faceCount - 1) * 14;
+        CGFloat nameWidth = MIN(text - faceWidth - 6, [_creator sizeThatFits:CGSizeMake(text, CGFLOAT_MAX)].width);
+        CGFloat start = round((width - faceWidth - 6 - nameWidth) / 2);
+        _creator.frame = CGRectMake(start + faceWidth + 6, _creator.frame.origin.y, nameWidth, _creator.frame.size.height);
+        NSUInteger index = 0;
+        for (UIImageView *face in _faces) if (!face.hidden) face.frame = CGRectMake(start + index++ * 14, CGRectGetMidY(_creator.frame) - 10, 20, 20);
+    }
     if (previous) y += kRowAbove;
 
     // Play on the middle of the page, the other two hung off its sides, so it holds its place whether both
@@ -193,3 +234,45 @@ static BOOL setText(UILabel *label, NSString *text) {
 }
 
 @end
+
+@interface SGREntityFade : UIView
+@end
+@implementation SGREntityFade
++ (Class)layerClass { return CAGradientLayer.class; }
+@end
+static char kRevealKey, kBottomFadeKey;
+BOOL SGREntityArtworkReady(UIView *root) {
+    __block BOOL ready = NO;
+    SGForEachView(root, ^(UIView *view) {
+        if ([view isKindOfClass:UIImageView.class] && view.bounds.size.width >= 80 && ((UIImageView *)view).image) ready = YES;
+    });
+    return ready;
+}
+void SGRFinishEntityPage(UIView *page, BOOL ready) {
+    if (!page) return;
+    SGREntityFade *fade = objc_getAssociatedObject(page, &kBottomFadeKey);
+    if (!fade) {
+        fade = [SGREntityFade new];
+        fade.userInteractionEnabled = NO;
+        fade.accessibilityElementsHidden = YES;
+        CAGradientLayer *gradient = (CAGradientLayer *)fade.layer;
+        gradient.colors = @[(id)UIColor.clearColor.CGColor, (id)UIColor.blackColor.CGColor];
+        gradient.locations = @[@0, @1];
+        fade.layer.zPosition = 100;
+        objc_setAssociatedObject(page, &kBottomFadeKey, fade, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (fade.superview != page) [page addSubview:fade];
+    CGFloat height = MAX(80, page.safeAreaInsets.bottom + 70);
+    fade.frame = CGRectMake(0, MAX(0, page.bounds.size.height - height), page.bounds.size.width, height);
+    NSInteger state = [objc_getAssociatedObject(page, &kRevealKey) integerValue];
+    if (state == 2) return;
+    if (ready) {
+        objc_setAssociatedObject(page, &kRevealKey, @2, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [UIView animateWithDuration:UIAccessibilityIsReduceMotionEnabled() ? 0 : .2 delay:0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{ page.alpha = 1; } completion:nil];
+    } else if (!state) {
+        objc_setAssociatedObject(page, &kRevealKey, @1, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        page.alpha = 0;
+        __weak UIView *weakPage = page;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{ if (weakPage) SGRFinishEntityPage(weakPage, YES); });
+    }
+}

@@ -15,6 +15,8 @@
 #define SGKeyLyricsAllTracks @"spotifyglass.lyricsAllTracks"
 // Names the source the shown lines came from, on the full screen page.
 #define SGKeyLyricsCredit @"spotifyglass.lyricsCredit"
+// Enable when another injected tweak replaces lyrics. Read at launch, like the source hooks.
+#define SGKeyExternalLyricsReplacement @"spotifyglass.externalLyricsReplacement"
 // The language a line's translation is asked for in, as an index into SGLyricsTranslationLanguages;
 // unset or 0 takes whatever translation the source has.
 #define SGKeyLyricsTranslationLanguage @"spotifyglass.lyricsTranslationLanguage"
@@ -35,6 +37,7 @@
 @property (nonatomic, copy) NSString *title, *artist, *album;
 @property (nonatomic) NSInteger seconds;
 @property (nonatomic) BOOL instrumental;
+@property (nonatomic, copy) NSAttributedString *attribution; // mandatory linked credit when supplied
 @end
 
 // What is known about the track when a source is asked. Only trackID is always there; the rest is
@@ -91,6 +94,8 @@ extern NSString *const SGLyricsOwnRequestKey;
 // The name of the source the lines shown for the track came from, nil until they arrive.
 NSString *SGLyricsCreditFor(NSString *trackID);
 void SGLyricsSetCredit(NSString *trackID, NSString *name);
+NSAttributedString *SGLyricsAttributionFor(NSString *trackID);
+extern NSString *const SGLyricsCreditDidChange;
 // Turns an install's old Musixmatch switches into an order. Called once, before anything reads one.
 void SGLyricsMigrateLegacyKeys(void);
 
@@ -127,5 +132,8 @@ extern SGLyricsAsk SGMusixmatchAsk;
 extern SGLyricsAsk SGUnisonAsk;
 extern SGLyricsAsk SGNetEaseAsk;
 extern SGLyricsAsk SGLrcLibAsk;
+extern SGLyricsAsk SGSpicyLyricsAsk;
+UIViewController *SGSpicyLyricsSettingsPage(void);
+SGLyricsResult *SGSpicyLyricsParse(id root, NSString *trackID); // official JSON contract, no networking
 
 UIViewController *SGLyricsSourcesPage(void);   // the ordered list on the Lyrics page

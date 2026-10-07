@@ -44,6 +44,7 @@ UIViewController *SGAboutPage(void) {
     return [[SGModPage alloc] initWithTitle:@"Mod" intro:nil sections:@[
         SGSection(nil, @[
             updates,
+            SGAppIconRow(),
             SGStatRow(@"Version", ^NSString *{ return @(SG_VERSION); }),
             SGStatRow(@"Spotify", ^NSString *{ return spotify; }),
         ]),

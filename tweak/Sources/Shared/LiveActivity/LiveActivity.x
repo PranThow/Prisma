@@ -8,6 +8,7 @@
 #import "Core/SGCore.h"
 #import "Headers/SPTPlayer.h"
 #import "Shared/Lyrics/Lyrics.h"
+#import "Shared/LyricsSources/LyricsSources.h"
 #import "LiveActivity.h"
 
 API_AVAILABLE(ios(17.0))
@@ -104,6 +105,8 @@ static NSInteger repeatModeOf(SPTPlayerOptions *options) {
 // The line being sung and the one after it; before the first line, between lines and without lyrics
 // at all, a note holds the place.
 static NSString *lyricsLine(NSString *trackID, NSString **next) {
+    // This widget has no linked source-credit row; keep restricted provider data off it.
+    if (SGLyricsAttributionFor(trackID)) { *next = @""; return @"♪"; }
     NSArray<SGKaraokeLine *> *lines = SGKaraokeLinesForTrack(trackID);
     if (!lines) {
         SGKaraokeRequestLyrics(trackID);

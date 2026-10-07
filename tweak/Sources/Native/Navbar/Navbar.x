@@ -23,7 +23,7 @@ static const CGFloat kIconSize = 24;
 static const CGFloat kIconTop = 12.5;
 static const CGFloat kLabelTop = 35;
 static const CGFloat kLabelHeight = 14;
-static char kCustomKey, kOrderKey;
+static char kCustomKey, kOrderKey, kStockColorKey;
 
 // Where Spotify's own items keep their icon and label, read off one of them every pass, so an item of
 // the mod's own sits on the same line as its neighbours.
@@ -34,6 +34,8 @@ static __weak UIView *sg_navbarRoot;
 // The bar's row of items, given its frames by placeRow after each of its own passes.
 static __weak UIStackView *sg_row;
 static UIFont *sg_tabFont;
+static __weak UIControl *sg_selectedCustom;
+static BOOL sg_openingCustom;
 // Spotify's own tabs in Spotify's order, from the first layout pass of this launch, before
 // anything below has moved them.
 static NSMutableArray<NSString *> *sg_stockOrder;
@@ -58,8 +60,9 @@ static UIView *iconView(NSString *name) {
             return encore;
         }
     }
-    UIImage *image = [UIImage systemImageNamed:@"star.fill" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:19 weight:UIImageSymbolWeightSemibold]];
-    UIImageView *fallback = [[UIImageView alloc] initWithImage:image];
+    NSString *symbol = [name hasPrefix:@"sf:"] ? [name substringFromIndex:3] : name;
+    UIImage *image = [UIImage systemImageNamed:symbol withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:19 weight:UIImageSymbolWeightSemibold]];
+    UIImageView *fallback = [[UIImageView alloc] initWithImage:image ?: [UIImage systemImageNamed:@"star.fill"]];
     fallback.tintColor = itemColor();
     fallback.contentMode = UIViewContentModeCenter;
     return fallback;
@@ -118,6 +121,14 @@ static UIView *iconView(NSString *name) {
     return CGSizeMake(kIconSize * 2, kLabelTop + kLabelHeight);
 }
 
+- (void)setSelected:(BOOL)selected {
+    [super setSelected:selected];
+    UIColor *color = selected ? UIColor.whiteColor : itemColor();
+    _title.textColor = color;
+    _icon.tintColor = color;
+    if ([_icon respondsToSelector:@selector(setForegroundColor:)]) [(SPTEncoreIconView *)_icon setForegroundColor:color];
+}
+
 - (void)setHighlighted:(BOOL)highlighted {
     [super setHighlighted:highlighted];
     self.alpha = highlighted ? 0.5 : 1;
@@ -126,9 +137,46 @@ static UIView *iconView(NSString *name) {
 // Through the app's own link dispatcher (Shared/Navigation/Links.h).
 - (void)open {
     NSURL *url = self.uri.length ? [NSURL URLWithString:self.uri] : nil;
-    if (!SGOpenSpotifyURI(url)) SGLog(@"navbar: cannot open %@, dispatcher %@", self.uri, SGLinkDispatcher());
+    sg_openingCustom = YES;
+    BOOL opened = SGOpenSpotifyURI(url);
+    if (opened) { SGNavbarSelectItem(self); SGRefreshTabBar(); }
+    else SGLog(@"navbar: cannot open %@, dispatcher %@", self.uri, SGLinkDispatcher());
+    dispatch_async(dispatch_get_main_queue(), ^{ sg_openingCustom = NO; });
 }
 
+@end
+
+BOOL SGNavbarCustomSelected(UIView *item) { return item == sg_selectedCustom && sg_selectedCustom.selected; }
+void SGNavbarSelectItem(UIView *item) {
+    sg_selectedCustom.selected = NO;
+    sg_selectedCustom = [item isKindOfClass:SGTabItemView.class] ? (UIControl *)item : nil;
+    sg_selectedCustom.selected = YES;
+    SGForEachView(sg_row, ^(UIView *view) {
+        if (![view isKindOfClass:UILabel.class]) return;
+        for (UIView *owner = view.superview; owner && owner != sg_row; owner = owner.superview) if ([owner isKindOfClass:SGTabItemView.class]) return;
+        UILabel *label = (UILabel *)view;
+        UIColor *original = objc_getAssociatedObject(label, &kStockColorKey);
+        if (sg_selectedCustom) {
+            if (!original) objc_setAssociatedObject(label, &kStockColorKey, label.textColor, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            label.textColor = itemColor();
+        } else if (original) {
+            label.textColor = original;
+            objc_setAssociatedObject(label, &kStockColorKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+    });
+}
+
+@interface SGStockTabTap : UITapGestureRecognizer <UIGestureRecognizerDelegate>
+@end
+@implementation SGStockTabTap
+- (instancetype)init {
+    if (!(self = [super initWithTarget:self action:@selector(tapped)])) return nil;
+    self.cancelsTouchesInView = NO;
+    self.delegate = self;
+    return self;
+}
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gesture shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other { return YES; }
+- (void)tapped { SGNavbarSelectItem(self.view); SGRefreshTabBar(); }
 @end
 
 #pragma mark - composition
@@ -172,6 +220,9 @@ void SGComposeTabBar(UIView *tabBar) {
     NSMutableDictionary<NSString *, UIView *> *stockViews = [NSMutableDictionary dictionary];
     for (UIView *item in stack.arrangedSubviews) {
         if ([item isKindOfClass:SGTabItemView.class]) continue;
+        BOOL watched = NO;
+        for (UIGestureRecognizer *gesture in item.gestureRecognizers) if ([gesture isKindOfClass:SGStockTabTap.class]) watched = YES;
+        if (!watched) [item addGestureRecognizer:[SGStockTabTap new]];
         NSString *ident = stockID(item);
         if (stockViews[ident]) continue;
         stockViews[ident] = item;
@@ -319,6 +370,11 @@ void SGRefreshTabBar(void) {
 void SGLogTabBarRow(UIView *tabBar) {
     UIStackView *stack = SGRowIn(tabBar);
     if (!stack) return;
+    NSMutableArray *signature = [NSMutableArray arrayWithObjects:NSStringFromCGRect(tabBar.frame), NSStringFromCGRect(stack.frame), nil];
+    for (UIView *item in stack.arrangedSubviews) [signature addObject:@[[NSValue valueWithNonretainedObject:item], NSStringFromCGRect(item.frame), @(item.hidden)]];
+    static NSArray *previous;
+    if ([previous isEqualToArray:signature]) return;
+    previous = [signature copy];
     NSMutableString *out = [NSMutableString stringWithFormat:@"row in %@ %@, icon %@ label %@, stack %@ axis %ld dist %ld align %ld spacing %.1f autolayout %d",
                             NSStringFromClass(tabBar.class), NSStringFromCGRect(tabBar.frame),
                             NSStringFromCGRect(sg_iconBox), NSStringFromCGRect(sg_labelBox), NSStringFromCGRect(stack.frame),
@@ -360,6 +416,33 @@ void SGLogTabBarRow(UIView *tabBar) {
 }
 %end
 
+// Public navigation entry points clear a custom selection when another destination takes over.
+%hook UINavigationController
+- (void)pushViewController:(UIViewController *)controller animated:(BOOL)animated {
+    if (sg_selectedCustom && !sg_openingCustom) SGNavbarSelectItem(nil);
+    %orig;
+}
+- (UIViewController *)popViewControllerAnimated:(BOOL)animated {
+    if (sg_selectedCustom && !sg_openingCustom) SGNavbarSelectItem(nil);
+    return %orig;
+}
+- (NSArray *)popToRootViewControllerAnimated:(BOOL)animated {
+    if (sg_selectedCustom && !sg_openingCustom) SGNavbarSelectItem(nil);
+    return %orig;
+}
+- (void)setViewControllers:(NSArray *)controllers animated:(BOOL)animated {
+    if (sg_selectedCustom && !sg_openingCustom) SGNavbarSelectItem(nil);
+    %orig;
+}
+%end
+
+%hook _TtC23NavigationUI_TabBarImpl19TabBarContainerImpl
+- (void)setSelectedViewController:(UIViewController *)controller {
+    if (sg_selectedCustom && !sg_openingCustom) SGNavbarSelectItem(nil);
+    %orig;
+}
+%end
+
 %ctor {
     if (!SGNativeUI()) return;
     %init;
@@ -367,6 +450,7 @@ void SGLogTabBarRow(UIView *tabBar) {
         @"SPTEncoreIcon",
         @"SPTEncoreIconView",
         @"SPTEncoreLabel",
+        @"_TtC23NavigationUI_TabBarImpl19TabBarContainerImpl",
         @"_TtC28NavigationUI_TabBarItemsImpl29TabBarItemsNavigationListImpl",
     ]);
 }

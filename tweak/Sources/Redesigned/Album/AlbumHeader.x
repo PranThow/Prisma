@@ -27,6 +27,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Album.h"
+#import "AlbumMotion.inc"
 
 // How much of the cover's height the dissolve into the field covers, and the scrim over the top of it that
 // keeps the status bar and the back button legible on a bright picture. The playlist's numbers: one page.
@@ -37,6 +38,7 @@ static const CGFloat kMinHero = 120, kMinCover = 80;
 
 static char kHeaderKey, kCoverKey, kTitleKey, kParentKey, kMetaKey, kAddKey, kDownloadKey, kPlayKey, kShuffleKey;
 static char kHeroKey, kHeroHeightKey, kHeaderHeightKey, kInfoKey, kHeaderWatchedKey, kRetryKey;
+static char kMotionKey;
 static char kExploreKey, kRowWatchedKey, kMoreKey, kPinnedMoreKey;
 
 #pragma mark - moving Spotify's views
@@ -330,6 +332,19 @@ static SGRHeaderInfo *applyInfo(UIView *header, UIView *page) {
     // whole line however many artists are on the album, so several of them open Spotify's own picker
     // (issue #56).
     [info showCreatorLink:parent];
+    SGRAlbumHero *motionHero = objc_getAssociatedObject(header, &kHeroKey);
+    if (motionHero) {
+        SGRAlbumMotion *motion = objc_getAssociatedObject(motionHero, &kMotionKey);
+        if (!motion) {
+            motion = [SGRAlbumMotion new];
+            motion.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            objc_setAssociatedObject(motionHero, &kMotionKey, motion, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            [motionHero insertSubview:motion atIndex:1];
+        }
+        motion.frame = motionHero.bounds;
+        [motion showArtist:firstText(parent) album:firstText(title)];
+    }
+
 
     // More, pinned over the page rather than left in the header, which is blanked and scrolls away.
     SGRPinnedMore(page, &kPinnedMoreKey, SGRFindByIdentifier(header, @"Components.UI.ContextMenuButton*", &kMoreKey));
@@ -435,13 +450,19 @@ static void applyHeader(UIView *header, UIView *page) {
     objc_setAssociatedObject(header, &kHeaderHeightKey, @(rest), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     CGFloat bottom = rest - SGRHeaderInfoBottom - [info contentHeightForWidth:header.bounds.size.width] + SGRHeaderInfoTitleRise;
     UIView *cover = SGRFindByIdentifier(header, @"CreativeWorkPlatform.Components.UI.ArtWorkElement.WithCoverArt", &kCoverKey);
-    if (cover) applyHero(header, cover, bottom);
+    if (cover) {
+        BOOL hadHero = objc_getAssociatedObject(header, &kHeroKey) != nil;
+        applyHero(header, cover, bottom);
+        if (!hadHero) [header setNeedsLayout];
+    }
 }
 
 static void applyPage(UIView *page) {
     UIView *header = SGRFindByIdentifier(page, @"CreativeWorkPlatform.Components.UI.CreativeWorkHeader", &kHeaderKey);
-    if (!header) return;
+    if (!header) { SGRFinishEntityPage(page, NO); return; }
     applyHeader(header, page);
+    SGRHeaderInfo *info = objc_getAssociatedObject(header, &kInfoKey);
+    SGRFinishEntityPage(page, info.contentReady && SGREntityArtworkReady(header));
     // The header lays itself out again whenever its cover, its artist or its buttons arrive, which the
     // page's own pass does not hear about. It is a plain UIView, so its pass can be watched.
     watch(header, &kHeaderWatchedKey, ^(UIView *view) {

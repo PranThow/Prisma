@@ -11,6 +11,8 @@ NSString *SGURIString(id uri) {
 static NSHashTable<id<SGPlayerStateObserver>> *sg_stateObservers;
 static SPTPlayerState *sg_playerState;
 static NSString *sg_stateKey;
+static NSDictionary *sg_trackMetadata;
+static NSString *sg_metadataURI;
 // Set once the now playing platform has reported; the mod's own observer on the player stands down.
 static BOOL sg_platformReported = NO;
 
@@ -34,6 +36,19 @@ static NSString *keyOf(SPTPlayerState *state) {
 
 static void publish(SPTPlayerState *state) {
     sg_playerState = state;
+    NSString *uri = SGURIString(state.track.URI);
+    id metadata = state.track.metadata;
+    NSDictionary *snapshot = [metadata isKindOfClass:NSDictionary.class] ? [metadata copy] : nil;
+    BOOL sameURI = uri == sg_metadataURI || [uri isEqual:sg_metadataURI];
+    BOOL sameMetadata = snapshot == sg_trackMetadata || [snapshot isEqual:sg_trackMetadata];
+    if (!sameURI || !sameMetadata) {
+        sg_metadataURI = [uri copy];
+        sg_trackMetadata = snapshot;
+        for (id<SGPlayerStateObserver> observer in sg_stateObservers.allObjects) {
+            if ([observer respondsToSelector:@selector(playerTrackMetadataDidChange:)])
+                [observer playerTrackMetadataDidChange:state];
+        }
+    }
     NSString *key = keyOf(state);
     if ([key isEqualToString:sg_stateKey]) return;
     sg_stateKey = key;

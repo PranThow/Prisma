@@ -13,7 +13,9 @@ SGModSection *SGLyricsSourcesSection(BOOL namingSource) {
         return names.count ? [names componentsJoinedByString:@", "] : @"Off";
     };
     NSMutableArray<SGModRow *> *rows = [NSMutableArray arrayWithObjects:sources,
-        SGOptionRow(@"Lyrics for every track", @"Even where Spotify has none", SGKeyLyricsAllTracks), nil];
+        SGPageRow(@"Spicy Lyrics", ^UIViewController *{ return SGSpicyLyricsSettingsPage(); }),
+        SGOptionRow(@"Lyrics for every track", @"Even where Spotify has none", SGKeyLyricsAllTracks),
+        SGOptionRow(@"Another tweak replaces lyrics", @"Disable Prisma's source hooks and forced lyrics flags; restart required", SGKeyExternalLyricsReplacement), nil];
     if (namingSource) [rows addObject:SGOptionRow(@"Show source", nil, SGKeyLyricsCredit)];
     return SGSection(@"Sources", rows);
 }

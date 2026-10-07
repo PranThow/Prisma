@@ -2,7 +2,7 @@ name: Repository checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
   pull_request:
 
 permissions:
@@ -17,3 +17,27 @@ jobs:
         run: sh scripts/check-layers.sh tweak/Sources
       - name: Check build script syntax
         run: bash -n scripts/pipeline.sh scripts/install.sh
+      - name: Check IPA metadata and icons
+        run: python3 harness/packaging/check.py
+      - name: Check lyric source extraction and watcher guards
+        run: python3 harness/audio-lyrics/check.py
+      - name: Check portable player and mDNS policies
+        run: |
+          sh harness/player-policy/check.sh
+          sh harness/connect/check.sh
+      - name: Check Connect socket relay
+        run: python3 harness/connect/check-sockets.py
+
+  artwork:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        harness: [animated-artwork, canvas, artwork-video, apple-music-artwork, update, player-fluid, player-video, audio-routing]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run artwork harness
+        run: sh harness/${{ matrix.harness }}/check.sh
+      - name: Run lyric parser and serialization assertions
+        if: matrix.harness == 'audio-routing'
+        run: python3 harness/audio-lyrics/check.py

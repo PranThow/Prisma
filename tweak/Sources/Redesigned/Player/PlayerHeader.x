@@ -60,8 +60,19 @@ static void glassInside(UIViewController *unit, NSArray<NSString *> *identifiers
 }
 %end
 
+// Supplied Spotify 9.1.78 UUID c712370b-44cd-35c8-a058-4fbed1ad0758: ObjC metadata
+// proves this Free unit inherits UIViewController and its UIKit layout callback.
+%hook _TtC32ReinventFree_ReinventFreeNpvImpl43ReinventFreeNavigationBarUnitViewController
+- (void)viewDidLayoutSubviews {
+    %orig;
+    static const void *keys[] = {&kCloseKey, &kMoreKey};
+    glassInside((UIViewController *)self, @[@"now-playing-minimize-button", @"Context menu"], keys);
+}
+%end
+
 %ctor {
     if (!SGRedesignedUI()) return;
     %init;
-    SGRequireClasses(@[@"_TtC20NowPlaying_ModesImpl18HeaderElementsUnit"]);
+    SGRequireClasses(@[@"_TtC20NowPlaying_ModesImpl18HeaderElementsUnit",
+        @"_TtC32ReinventFree_ReinventFreeNpvImpl43ReinventFreeNavigationBarUnitViewController"]);
 }

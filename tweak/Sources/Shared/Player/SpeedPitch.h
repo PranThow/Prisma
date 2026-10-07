@@ -9,6 +9,11 @@
 // Speed and pitch last until Spotify quits; neither is stored.
 // Threading: main thread only, except what SGTimePitch.h says runs on the render thread.
 #import <UIKit/UIKit.h>
+#define SGKeyPitchFollowsSpeed @"spotifyglass.pitchFollowsSpeed"
+BOOL SGPlayerPitchFollowsSpeed(void);
+void SGSetPlayerPitchFollowsSpeed(BOOL coupled);
+@class SGModRow;
+SGModRow *SGPitchFollowsSpeedRow(void);
 
 // Marks a menu opened soon after a tap on `button`, the player's more button, as the player's, so it gets
 // Speed and pitch (watching it twice does nothing). The redesign's PlayerHeader.x hands its button over;

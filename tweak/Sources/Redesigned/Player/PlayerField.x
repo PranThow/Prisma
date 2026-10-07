@@ -8,8 +8,8 @@
 // The field goes on top of the plane's own subviews, so Spotify's gradients are covered rather than
 // fought over, and nothing depends on a repaint hook.
 //
-// With Moving background on (SGRKeyPlayerMotion, the default) the field is the Kit's moving field of the
-// artwork's colours (SGRFlow.h) rather than the still blurred artwork; a paused song holds it still.
+// Fluid cover distorts the actual artwork through the Kit's bounded Core Image renderer, rather than
+// extracted colours. Paused playback holds the last frame; the old Moving background key migrates.
 //
 // The picture comes from the Kit's now playing artwork, keyed on the picture the playing track names
 // (SGRBridges.h, issue #58): the Kit's own fetch of it, the now playing bar's 40pt cover, published by
@@ -49,12 +49,12 @@ static void showArtwork(SGRArtworkField *field, BOOL animated) {
     if (field && image) [field setArtwork:image identity:identity animated:animated];
 }
 
-static SGRArtworkField *fieldIn(UIView *plane) {
+SGRArtworkField *SGRPlayerFieldIn(UIView *plane) {
     SGRArtworkField *field = objc_getAssociatedObject(plane, &kFieldKey);
-    if (field) return field;
+    if (field) { sg_field = field; return field; }
     field = [[SGRArtworkField alloc] initWithFrame:plane.bounds];
     field.showsBackdrop = YES;
-    field.flows = SGEnabled(SGRKeyPlayerMotion);
+    field.flows = SGEnabled(SGRKeyPlayerFluid);
     // A paused song holds the colours still, the way it rests the cover (PlayerArtwork.x).
     field.motionHeld = SGPlayerState().isPaused;
     field.bleed = kBleed;
@@ -73,7 +73,7 @@ static SGRArtworkField *fieldIn(UIView *plane) {
     %orig;
     UIView *plane = ((UIViewController *)self).viewIfLoaded;
     if (!plane || plane.bounds.size.height < 200) return;
-    SGRArtworkField *field = fieldIn(plane);
+    SGRArtworkField *field = SGRPlayerFieldIn(plane);
     sg_field = field;
     if (field.superview != plane) [plane addSubview:field];
     else if (plane.subviews.lastObject != field) [plane bringSubviewToFront:field];
@@ -142,7 +142,7 @@ static void publishCover(void) {
 }
 
 - (void)playerStateDidChange:(SPTPlayerState *)state {
-    sg_field.motionHeld = state.isPaused;
+    sg_field.motionHeld = state.isPaused || SGRPlayerVideoShowing();
     NSString *track = SGURIString(state.track.URI);
     if (!track || [track isEqualToString:_track]) return;
     _track = track;
@@ -179,11 +179,15 @@ static SGRPlayerCoverWatcher *sg_coverWatcher;
     }
     SGRedesignForceFlags(@"player", flags);
     if (!SGRedesignedUI()) return;
+    SGMigrateKey(SGRKeyPlayerMotion, SGRKeyPlayerFluid);
     %init;
     sg_coverWatcher = [SGRPlayerCoverWatcher new];
     SGAddPlayerStateObserver(sg_coverWatcher);
     [NSNotificationCenter.defaultCenter addObserverForName:SGRNowPlayingArtworkDidChangeNotification object:nil queue:nil usingBlock:^(NSNotification *note) {
         showArtwork(sg_field, YES);
+    }];
+    [NSNotificationCenter.defaultCenter addObserverForName:NSUserDefaultsDidChangeNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+        sg_field.flows = SGEnabled(SGRKeyPlayerFluid);
     }];
     SGRequireClasses(@[
         @"_TtC21NowPlaying_ScrollImpl27NPVBackgroundViewController",
