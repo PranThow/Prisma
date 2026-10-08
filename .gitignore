@@ -13,9 +13,7 @@
 .signing.env
 Password*.txt
 
-# Local plans, work reports and agent state
-/prisma-spoti-0.23-parity.md
-/docs/parity-implementation.md
+# Local agent state
 .codex/
 .claude/settings.local.json
 .claude/sessions/

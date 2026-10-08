@@ -1,6 +1,6 @@
 # Prisma parity tasks for agents
 
-This splits [the requirements inventory](../prisma-spoti-0.23-parity.md) into bounded assignments.
+This is the consolidated parity backlog, split into bounded assignments for agents.
 Read [the implementation status](parity-implementation.md) before claiming work: much of this
 already has source code. Every task begins with checking the current implementation against its
 acceptance criteria. Fix only what is missing; otherwise deliver validation and remaining limits.
@@ -8,13 +8,17 @@ All tasks start **unclaimed and unverified**, not necessarily unimplemented.
 
 ## Instructions to include with every assignment
 
-- Read [AGENTS.md](../AGENTS.md), [docs/tweaks.md](tweaks.md), the inventory's implementing-agent
-  instructions and the implementation status. These instructions apply to every task below.
+- Read [AGENTS.md](../AGENTS.md), [docs/tweaks.md](tweaks.md) and the implementation status.
+  These instructions apply to every task below.
+- Treat these tasks as user-visible behavioral requirements, not instructions to port another
+  project. Historical comparisons are context, not verified acceptance results.
 - Implement independently from existing Prisma code, local Spotify trees/binary evidence and
   official platform/provider documentation. Do not retrieve or inspect the original project's
   repository, history, source, patches, binaries, mirrors or assets, including through another agent.
 - Preserve GPL v3, attribution, Prisma branding/release URLs, existing identifiers and persisted
   preference compatibility. Keep Native and Redesigned separate and retain the iOS 26 redesign gate.
+  Removal of upstream donations, reporting, certificate-sales prompts and unrelated community links
+  is intentional; CLA automation is governance, not app parity. Do not restore those features.
 - Paths below are relative to the repository; source paths are relative to `tweak/Sources/` unless
   they start with `harness/`, `scripts/`, `docs/`, `plist/` or `.github/`. A named directory is an
   ownership boundary, not permission to rewrite all its files. New files stay inside that boundary.
