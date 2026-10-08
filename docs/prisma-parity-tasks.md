@@ -36,17 +36,56 @@ All tasks start **unclaimed and unverified**, not necessarily unimplemented.
 - Handoff: task ID, exact changed files, resulting behavior, executed commands/results, remaining
   blockers and required device checks. Only the integration owner updates the central status document.
 
-## Assigning parallel work
+## Lanes: what each agent does
 
-One integration owner reserves `App/Pages.*`, `App/ModSettings.x`, `Core/SGPrefs.*`, common declarations,
-build inputs, packaging/release files and the central status document. They apply cross-task wiring
-after reviewing each handoff. Feature owners supply their layer's settings rows and declarations.
-Player/Navbar and audio tasks also need one owner per overlapping file; splitting a feature into
-small tasks does not make edits to the same file safe to run concurrently.
+Work runs in six lanes, one agent per lane, plus the integration owner. A lane owns its files for
+the whole run, so lanes never edit the same file and can run at the same time. **Find your lane
+below and do its tasks in the listed order.** Ignore tasks outside your lane.
 
-Start with independent correctness checks, artwork coverage, each look's tab editor, lyrics provider,
-Connect and release checks. Run player tasks in order within their lane. Finish audio ownership before
-audio consumers and Sing. Verification can run alongside code in other lanes on a separate checkout.
+| Lane | Agent | Tasks, in order |
+| --- | --- | --- |
+| 1 | Lyrics | F01, F03, L01, L02, L03 (Native), L03 (Redesigned), F02 |
+| 2 | Player | F06, F07, F08, U01, U02, U03, B01, B02, B03, V01, V02, V03, M01, M02 |
+| 3 | Artwork and album | A01, A02, A03, A04, A05, H01, H02, H03, E01, E02, E03 |
+| 4 | Navbar | N01, N02, N03, N05, F09 (Redesigned), N04, F09 (Native), F10, F05 |
+| 5 | Audio and Connect | D01, D02, D03, D04, C01, C03 |
+| 6 | Updates and evidence | R01, R02, R03, S01, S02, P01, P02, P03, P04 |
+| - | Integration owner | F04, I01, I02, C02, T01, T02, all cross-lane wiring, then Q01-Q03 |
+
+S03-S06 are not assigned. They start only after S01 and S02 clear their gates.
+
+The integration owner alone edits `App/Pages.*`, `App/ModSettings.x`, `Core/SGPrefs.*`, common
+declarations, build inputs, packaging/release files, the claim table below and the central status
+document. A lane that needs one of those changed writes the exact change in its handoff instead.
+
+### Rules for every lane agent
+
+1. Work on your lane's branch. Do the tasks in order and make one commit per task.
+2. Before you start each task, run `git fetch origin && git merge origin/main`, then resolve any
+   conflicts. This picks up the other lanes' merged work.
+3. Edit only the files on the task's **Own:** line. If a task depends on another lane's task that
+   isn't on `main` yet, record it as blocked and move to your next task.
+4. After each task, append its handoff to `docs/handoffs/<lane>.md` in the format given in the
+   shared instructions, then stop and wait for the integration owner to merge before you continue.
+5. A blocked task is a valid result. Record why it's blocked and move on. Don't guess selectors to get past a gate.
+
+### Keeping lanes in sync (integration owner)
+
+- Merge each lane's branch into `main` after every task, or every two at most. Small merges are
+  easy to review; a week of one lane's work is not.
+- After each merge, apply any wiring the handoff asks for, commit it to `main`, and update the
+  claim table. The other lanes pick it up at their next `git merge origin/main`.
+- If a merge conflicts, the lane has edited outside its reservation. Send it back and don't
+  resolve the conflict yourself.
+
+### Prompt to start a lane agent
+
+```
+You are the <lane name> lane agent (lane <N>) in docs/prisma-parity-tasks.md.
+Read AGENTS.md, docs/tweaks.md, docs/parity-implementation.md and the whole
+"Instructions to include with every assignment" and "Lanes" sections of that doc.
+Then do your lane's tasks in order, following "Rules for every lane agent".
+```
 
 | Inventory area | Task IDs | Coordination |
 | --- | --- | --- |
@@ -69,8 +108,8 @@ audio consumers and Sing. Verification can run alongside code in other lanes on 
 | Deferred policy choices | P01-P04 | Decision records, no behavior changes |
 | Integration validation | Q01-Q03 | macOS and real device required |
 
-Copy a task heading and its bullets, together with the shared instructions above, into an agent's
-assignment. Update this claim table before starting; add one row per claimed task.
+The claim table below is written by the integration owner only. Lane agents report through
+their handoff files.
 
 | Task | Agent | Exact reserved files | State | Handoff/result |
 | --- | --- | --- | --- | --- |
