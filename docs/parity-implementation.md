@@ -1,6 +1,7 @@
 # Prisma parity implementation status
 
-This records the independent implementation of `prisma-spoti-0.23-parity.md` on 2026-10-07.
+This records the independent parity implementation on 2026-10-07. The consolidated
+[agent task board](prisma-parity-tasks.md) contains the requirements and remaining assignments.
 Source changes and regression checks are present; **iOS compilation and device parity are not
 established**. Three agents implemented player/artwork, navigation/entity pages, and audio/lyrics;
 the integration owner handled App settings, packaging, update channels and discovery.
