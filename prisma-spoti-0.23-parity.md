@@ -1,5 +1,18 @@
 # Prisma independent feature implementation backlog
 
+## Small tasks for implementing agents
+
+Use the [agent task board](docs/prisma-parity-tasks.md) to assign small tasks from this inventory.
+Each task names its scope, file ownership, dependencies and acceptance checks. Give an agent
+the board's shared instructions plus the selected task; reserve overlapping files before work starts.
+
+This inventory predates the [implementation status](docs/parity-implementation.md). Several
+features and fixes below now have source implementations and harnesses. Check the current tree
+first and complete only missing behavior or validation; do not rebuild an existing feature or
+interpret this historical inventory as proof that it is still absent. Source completion does not
+establish iOS compilation or device parity. Deferred policy decisions and blocked prerequisites
+have separate tasks on the board.
+
 ## Instructions for implementing agents
 
 Implement the user-visible behavior below independently in Prisma. This is a requirements inventory, not an instruction to port another project's implementation. Historical comparisons in this report are context, not verified acceptance results or a source-code dependency.
