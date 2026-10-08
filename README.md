@@ -63,23 +63,14 @@ from the US catalog, with an undocumented guest authorization route that can sto
 The system controls whether animation plays; static artwork remains when no usable clip is found.
 See the [requirements, provider behavior and validation limits](docs/tweaks.md#animated-lock-screen-artwork).
 
-## Known CI failures (2026-10-07)
+## Known release automation failure (2026-10-07)
 
-The checks for commit `2032933` reported **four failures, six successes and one skipped job**.
-These issues remain unfixed; the full iOS build and device behavior are still unverified.
-
-| Failed check | Error from the logs | Follow-up |
-|---|---|---|
-| `apple-music-artwork` | The local `decimal` helper conflicts with the macOS SDK's `decimal` typedef after importing VideoToolbox. | Rename the helper and its callers, then rerun the harness. |
-| `audio-routing` | `kAudioUnitSubType_RemoteIO` is unavailable in the macOS SDK used to compile the mocked iOS audio test. | Make the test's RemoteIO subtype available without changing production iOS behavior. |
-| `player-video` | `assert` interprets commas in Objective-C array literals as extra macro arguments. | Add parentheses around the affected assertion expressions, then rerun the harness. |
-| `release-please` | Release automation stopped with `other side closed` while fetching commit history. | Retry the workflow before changing release configuration; the log indicates a closed network connection. |
-
-See the [repository-check logs](https://github.com/PranThow/Prisma/actions/runs/37631984617)
-and [release log](https://github.com/PranThow/Prisma/actions/runs/37631984745).
+Release Please for commit `2032933` stopped with `other side closed` while fetching commit
+history. Retry the workflow before changing release configuration; the
+[release log](https://github.com/PranThow/Prisma/actions/runs/37631984745) indicates a closed
+network connection.
 The `.deb` job was skipped because Release Please failed before creating a release; no package
-build ran in that job. After addressing the three compile errors, rerun CI and review any further
-test failures before treating the implementation as validated.
+build ran in that job. The full iOS build and device behavior remain unverified.
 
 ## Build Prisma
 

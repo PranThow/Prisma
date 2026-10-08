@@ -106,7 +106,7 @@ static NSDictionary *hlsAttributes(NSString *text) {
     }
     return end == text.length ? attributes : nil;
 }
-static BOOL decimal(NSString *text, unsigned long long *value) {
+static BOOL parseUnsignedDecimal(NSString *text, unsigned long long *value) {
     if (!text.length || [text rangeOfCharacterFromSet:
         [NSCharacterSet characterSetWithCharactersInString:@"0123456789"].invertedSet].location != NSNotFound) return NO;
     NSScanner *scanner = [NSScanner scannerWithString:text];
@@ -115,8 +115,8 @@ static BOOL decimal(NSString *text, unsigned long long *value) {
 static BOOL byteRange(NSString *text, unsigned long long expected, unsigned long long *end) {
     NSArray *parts = [text componentsSeparatedByString:@"@"];
     unsigned long long length = 0, start = expected;
-    if (parts.count > 2 || !decimal(parts.firstObject,&length) || !length ||
-        (parts.count == 2 && !decimal(parts[1],&start)) || start != expected ||
+    if (parts.count > 2 || !parseUnsignedDecimal(parts.firstObject,&length) || !length ||
+        (parts.count == 2 && !parseUnsignedDecimal(parts[1],&start)) || start != expected ||
         start + length > 32 * 1024 * 1024) return NO;
     *end = start + length;
     return YES;
@@ -189,7 +189,7 @@ NSURL *SGAppleArtworkPlaylistURL(NSString *playlist, NSURL *base, double ratio, 
                     @"^(?:hvc1|hev1)\\.[12]\\.[0-9A-Fa-f]+\\.L[0-9]+(?:\\.[0-9A-Fa-f]+)*$" options:0 error:nil];
                 BOOL supportedCodec = avc || (SGAppleArtworkHEVCSupported() && [codec isKindOfClass:NSString.class] &&
                     [hevc numberOfMatchesInString:codec options:0 range:NSMakeRange(0, codec.length)] == 1);
-                BOOL supported = size.count == 2 && decimal(size[0],&w) && decimal(size[1],&h) && w && h &&
+                BOOL supported = size.count == 2 && parseUnsignedDecimal(size[0],&w) && parseUnsignedDecimal(size[1],&h) && w && h &&
                     w <= 1920 && h <= 1920 && supportedCodec && ![codec containsString:@","] &&
                     (!variant[@"VIDEO-RANGE"] || [variant[@"VIDEO-RANGE"] isEqual:@"SDR"]) &&
                     !variant[@"AUDIO"] && !variant[@"VIDEO"] && !variant[@"SUBTITLES"];
