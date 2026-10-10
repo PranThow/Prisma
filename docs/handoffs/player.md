@@ -1,5 +1,12 @@
 # Player lane handoffs
 
+## B03 - Verify fluid player lifecycle
+
+- **Changed files:** `harness/player-fluid/check-source.py`, `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
+- **Result:** The existing Player field keeps a track URI with its settled cover, updates from published now-playing artwork, and holds motion for paused playback or video. The shared field lifecycle already stops renderer motion off-window, inactive, in player transitions, Reduce Motion, or Low Power Mode, then resumes when eligible. The source regression now locks those contracts down.
+- **Executed checks:** `python harness/player-fluid/check-source.py` passed (`Fluid source: serial renderer, stale-cover rejection and lifecycle gating passed`). `git diff --check` passed.
+- **Blockers and device checks still owed:** Run `sh harness/player-fluid/check.sh` and `env -u MAKELEVEL gmake -C tweak clean package` on macOS. On iOS 26 with Spotify 9.1.78, verify rapid cover changes, pause/resume, background/foreground, Reduce Motion and Low Power transitions, then dismiss/reopen the player; confirm the last valid background remains visible, renderer work stops while ineligible, and it resumes without stale frames or transition jank.
+
 ## B02 - Complete fluid controls, preview, reset and migration
 
 - **Changed files:** `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
