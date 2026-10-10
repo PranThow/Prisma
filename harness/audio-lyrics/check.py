@@ -14,6 +14,8 @@ OUT.mkdir(exist_ok=True)
 provider = (SRC / 'Shared/LyricsSources/SpicyLyrics.m').read_text(encoding='utf-8')
 parser = provider[provider.index('static BOOL token'):provider.index('@interface SGSpicyRequest')]
 sources = (SRC / 'Shared/LyricsSources/LyricsSources.m').read_text(encoding='utf-8')
+lock_screen = (SRC / 'Shared/LockScreenLyrics/LockScreenLyrics.x').read_text(encoding='utf-8')
+live_activity = (SRC / 'Shared/LiveActivity/LiveActivity.x').read_text(encoding='utf-8')
 assert 'if (!token(key, @"sl_pk_", 512)' in provider
 assert 'if (status == 401 || status == 403)' in provider
 assert 'response.expectedContentLength > 2 * 1024 * 1024' in provider
@@ -33,6 +35,14 @@ assert 'previous = MAX(previous, start)' in page
 assert 'SGKeyExternalLyricsReplacement' in sources
 assert 'return !SGFlag(SGKeyExternalLyricsReplacement, NO) && SGLyricsOrder().count > 0;' in sources
 assert 'dispatch_once(&once, ^{ on = SGLyricsEnabled(); });' in sources
+assert 'SGLyricsProviderFor(key) && ![order containsObject:key]' in sources
+assert 'walk.order = SGLyricsOrder();' in sources
+assert 'SGLyricsProviderFor(walk.order[walk.index++])' in sources
+assert 'merged.attribution = fresh.attribution;' in sources
+assert 'sg_attribution[trackID] = lyrics.attribution;' in sources
+assert 'return sg_attribution[trackID] ?: SGKaraokeLinesForTrack(trackID).firstObject.sourceAttribution;' in sources
+assert 'if (SGLyricsAttributionFor(trackID)) return nil;' in lock_screen
+assert 'if (SGLyricsAttributionFor(trackID)) { *next = @""; return @"♪"; }' in live_activity
 assert 'if (!SGLyricsEnabled()) return;' in hook
 karaoke = (SRC / 'Shared/Lyrics/KaraokeSource.x').read_text(encoding='utf-8')
 assert 'SGAddPlayerStateObserver(sg_stateObserver)' in karaoke
