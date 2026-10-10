@@ -12,6 +12,7 @@ int main(void) {
     assert(SGRPlayerShouldImmerse(true, 14, 10));
     assert(!SGRPlayerShouldImmerse(false, 20, 10));
     assert(!SGRPlayerShouldImmerse(true, NAN, 10));
+    assert(!SGRPlayerShouldImmerse(true, 20, NAN));
     assert(!SGRPlayerShouldImmerse(true, 10, 20));
     assert(SGRPlayerDisplayedCoverScale(true, .84, 1) == .84);
     assert(SGRPlayerDisplayedCoverScale(false, .84, 1) == 1);
