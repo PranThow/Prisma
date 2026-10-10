@@ -1,5 +1,12 @@
 # Player lane handoffs
 
+## B02 - Complete fluid controls, preview, reset and migration
+
+- **Changed files:** `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
+- **Result:** The existing Player background page already exposes bounded Speed, Warp, Blur, Saturation and Brightness controls. Its always-flowing current-cover preview and the full player refresh their render settings after defaults changes; reset removes exactly those overrides. The existing launch migration moves the legacy moving-background key only when Fluid cover has no stored value, preserving a user's newer setting.
+- **Executed checks:** PowerShell B02 source-contract check passed. `python harness/player-fluid/check-source.py` passed (`Fluid source: serial renderer and stale-cover rejection passed`). `git diff --check` passed.
+- **Blockers and device checks still owed:** Build with `env -u MAKELEVEL gmake -C tweak clean package` and run `sh harness/player-fluid/check.sh` on macOS. On iOS 26 with Spotify 9.1.78, change each control and reset it while the page and full player are visible; confirm immediate preview/player updates, bounded malformed stored values, and legacy-key migration without overwriting a newer Fluid-cover choice.
+
 ## U03 - Verify tap-to-seek alongside dragging
 
 - **Changed files:** `tweak/Sources/Redesigned/Player/PlayerControls.x`, `tweak/Sources/Redesigned/Player/SGRPlayerPolicy.h`, `harness/player-policy/main.c`, `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
