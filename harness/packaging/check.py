@@ -53,19 +53,22 @@ def check():
             assert plistlib.loads(archive.read(member)) == merged
             assert archive.read("Payload/Spotify.app/Spotify") == b"binary unchanged"
             assert archive.read("Payload/Spotify.app/PlugIns/Widget.appex/Info.plist") == b"widget unchanged"
+            assert merged["CFBundleIcons"]["CFBundleAlternateIcons"]["PrismaViolet"]["CFBundleIconFiles"] == ["PrismaViolet"]
+            assert merged["CFBundleIcons~ipad"]["CFBundleAlternateIcons"]["PrismaViolet"]["CFBundleIconFiles"] == ["PrismaViolet-ipad", "PrismaViolet-ipad-pro"]
             for name in metadata.ICONS:
-                png = archive.read(f"Payload/Spotify.app/{name}@3x.png")
-                assert png[:8] == b"\x89PNG\r\n\x1a\n"
-                assert struct.unpack_from(">II", png, 16) == (180, 180)
-                # Decode and validate every chunk rather than only recognizing a filename.
-                offset, encoded = 8, bytearray()
-                while offset < len(png):
-                    size = struct.unpack_from(">I", png, offset)[0]
-                    kind, data = png[offset+4:offset+8], png[offset+8:offset+8+size]
-                    assert zlib.crc32(kind + data) == struct.unpack_from(">I", png, offset+8+size)[0]
-                    if kind == b"IDAT": encoded.extend(data)
-                    offset += size + 12
-                assert len(zlib.decompress(encoded)) == 180 * (1 + 180 * 3)
+                for suffix, dimension in (("@2x", 120), ("@3x", 180), ("-ipad@2x", 152), ("-ipad-pro@2x", 167)):
+                    png = archive.read(f"Payload/Spotify.app/{name}{suffix}.png")
+                    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+                    assert struct.unpack_from(">II", png, 16) == (dimension, dimension)
+                    # Decode and validate every chunk rather than only recognizing a filename.
+                    offset, encoded = 8, bytearray()
+                    while offset < len(png):
+                        size = struct.unpack_from(">I", png, offset)[0]
+                        kind, data = png[offset+4:offset+8], png[offset+8:offset+8+size]
+                        assert zlib.crc32(kind + data) == struct.unpack_from(">I", png, offset+8+size)[0]
+                        if kind == b"IDAT": encoded.extend(data)
+                        offset += size + 12
+                    assert len(zlib.decompress(encoded)) == dimension * (1 + dimension * 3)
         metadata.package(output, output, assets)
         with zipfile.ZipFile(output) as archive:
             assert len(archive.namelist()) == len(set(archive.namelist()))
