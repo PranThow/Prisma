@@ -162,6 +162,9 @@ their handoff files.
 | B01 | Player | `harness/player-fluid/main.m`, `check.sh`, `check-source.py` (no source change) | Merged; macOS Core Image harness and iOS 26 cover-replacement/transition checks pending | `docs/handoffs/player.md` |
 | N04 | Navbar | `Native/Navbar/NavbarSettings.m`, `harness/tabbar/native-editor-check.ps1` | Merged; macOS build and editor sheet/VoiceOver/persistence device checks pending | `docs/handoffs/navbar.md` |
 | I02 | Integration | - (no source change) | Blocked: needs macOS build/signing and iPhone/iPad icon switching | `docs/handoffs/integration.md` |
+| B02 | Player | - (no source change) | Merged; macOS build/fluid harness and iOS 26 control/reset/migration checks pending | `docs/handoffs/player.md` |
+| F09 (Native) | Navbar | `harness/tabbar/native-selection-check.ps1` (no source change) | Merged; macOS build and device navigation/reorder/remove checks pending | `docs/handoffs/navbar.md` |
+| C02 | Integration | `harness/packaging/check.py` | Merged; macOS release/install signing and real Connect/Cast discovery pending | `docs/handoffs/integration.md` |
 
 ## Small correctness fixes
 
