@@ -84,3 +84,20 @@ verified packaging metadata; no layered Icon Composer Liquid Glass asset or
 Apple-toolchain validation is present. Keep describing them as static alternates,
 not exact beta icon parity. Revisit only with source artwork rights, a macOS/iOS
 26 Icon Composer build, and device checks for every iPhone/iPad icon slot.
+
+## R03 — Release Please configuration review
+
+Changed `docs/handoffs/updates-evidence.md` only. No release configuration changed:
+those files are owned by the integration owner.
+
+The stable and beta JSON files parse. Both retain the Prisma package name and
+unprefixed tags; beta alone declares prerelease versioning with the `beta` type.
+The workflow listens to `main` and `beta`, selects the matching configuration,
+checks out the release-created tag, and attaches the resulting `.deb` to that
+same tag.
+
+Executed: the Node JSON/channel-field validation passed; a PowerShell workflow
+contract check passed; `git diff --check` passed. A real non-publishing
+Release Please action run remains owed because its action/schema validator is
+not installed locally and this task does not authorize workflow dispatch or a
+release. No macOS or device checks apply.
