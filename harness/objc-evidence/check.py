@@ -21,11 +21,11 @@ for suffix in names:
     unit = [row for row in rows if row[0] == prefix + suffix]
     assert unit, suffix
     assert all(row[1] == "_OBJC_CLASS_$_UIViewController" for row in unit), suffix
-duration = [row for row in rows if row[0] == prefix + names[0] and row[3] == "viewDidLayoutSubviews"]
-assert duration and duration[0][4] == "v16@0:8"
+    layout = [row for row in unit if row[2] == "-" and row[3] == "viewDidLayoutSubviews"]
+    assert len(layout) == 1 and layout[0][4] == "v16@0:8", suffix
 rows = list(inspect(binary, re.compile("^GCKCastDeviceMDNSScanner$"), re.compile(".*customMulticastEnabled:|createMDNS.*")))
 factory = [row for row in rows if row[2] == "+" and row[3].startswith("createMDNS")]
 initializer = [row for row in rows if row[2] == "-" and row[3].endswith("customMulticastEnabled:")]
 assert len(factory) == 1 and factory[0][4] == "@48@0:8B16B20@24d32d40"
 assert len(initializer) == 1 and initializer[0][4] == "@60@0:8@16@24@32@40@48B56"
-print("Local binary metadata: five Free units/UIViewController inheritance and Cast factory ABI passed")
+print("Local binary metadata: five Free units/UIViewController inheritance and layout ABI, plus Cast factory ABI passed")

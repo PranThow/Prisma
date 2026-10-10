@@ -6,3 +6,28 @@
 - **Result:** The full-screen cover holds its scale from the start of a player open or close transition. Playback changes during the morph apply after it completes, so the cover does not jump and resumes at the correct playing scale.
 - **Executed checks:** `git diff --check` passed. Source wiring check passed (`Player transition-scale wiring present`). The policy harness was not run: this Windows host has no `cc` compiler.
 - **Remaining blockers and device checks:** Build and test on macOS/iOS 26 with Spotify 9.1.78: paused open/close, resume during an open or close, and interrupted interactive transitions. Confirm the cover remains stable during the morph and returns to the correct scale afterwards.
+
+## F07 - Free-player class and selector contracts
+
+- **Result:** The five hooked `ReinventFree` units are Objective-C subclasses of
+  `UIViewController` and each implements `-viewDidLayoutSubviews` with ABI `v16@0:8` in the
+  supplied decrypted Spotify 9.1.78 executable (UUID
+  `C712370B-44CD-35C8-A058-4FBED1AD0758`).
+
+  | Hooked area | Class | Proven selector | Runtime layout evidence |
+  | --- | --- | --- | --- |
+  | Header | `ReinventFreeNavigationBarUnitViewController` | `-viewDidLayoutSubviews` (`v16@0:8`) | Missing |
+  | Controls | `ReinventFreePlaybackControlsElementsUnit` | `-viewDidLayoutSubviews` (`v16@0:8`) | Missing |
+  | Footer | `ReinventFreeFooterElementsUnit` | `-viewDidLayoutSubviews` (`v16@0:8`) | Missing |
+  | Lyrics information | `ReinventFreeInformationElementsUnit` | `-viewDidLayoutSubviews` (`v16@0:8`) | Missing |
+  | Lyrics duration | `DurationElementsUnit` | `-viewDidLayoutSubviews` (`v16@0:8`) | Missing |
+
+- **Changed file:** `harness/objc-evidence/check.py` now checks the layout selector and its type
+  encoding for every listed Free unit, instead of only the duration unit.
+- **Evidence command:** `python harness/objc-evidence/check.py out/parity-evidence/Spotify`.
+  It passed when the supplied executable was available; the ignored `out/parity-evidence/` file
+  is not present in this checkout, so it could not be rerun here.
+- **Blocker for F08:** Binary metadata proves these hooks can safely call UIKit's layout callback.
+  It cannot prove the Free view hierarchy or the identifiers consumed by the shared styling helpers.
+  Record a Spotify 9.1.78 Free-player tree for each row before changing the four Player hook files;
+  otherwise F08 remains blocked.
