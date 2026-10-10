@@ -39,3 +39,12 @@
 - Blockers: none for the source-level validation. The Windows checks cannot exercise UIKit link activation or VoiceOver.
 - Required macOS and device checks: run `python3 harness/audio-lyrics/check.py` on macOS; on an iOS device, verify provider, catalogue, uploader and optional maker links are visible, open their HTTPS destinations and are announced/actionable by VoiceOver in Native lyrics card/full screen and Redesigned karaoke. Also verify missing/malformed provider credits show no empty or unsafe link.
 - Integration request: none.
+
+## F02 - Retry lyrics after a background track change
+
+- Changed files: `tweak/Sources/Shared/Lyrics/KaraokeSource.x`; `harness/audio-lyrics/check.py`; `docs/parity-checklist.md`; `docs/handoffs/lyrics.md`; `.lane-commit-msg`.
+- Result: On foregrounding (and refreshed Spotify authorization), the karaoke observer now reads the player's current state before the last published state, so a background A-to-B change requests B rather than stale A. Empty successful Spotify lyrics replies clear their request marker, allowing that foreground pass to retry; in-flight/current-track guards still prevent duplicate A-to-B-to-A requests.
+- Checks: `python harness/audio-lyrics/check.py` (passed source extraction and foreground/empty-reply guards on Windows); `python -m py_compile harness/audio-lyrics/check.py` (passed); `git diff --check` (passed).
+- Blockers: Windows cannot execute the Objective-C runtime assertions or build the tweak.
+- Required macOS and device checks: run `python3 harness/audio-lyrics/check.py` on macOS; on device, background during A-to-B, foreground and verify only B is requested/displayed; repeat A-to-B-to-A rapidly and verify no duplicate observers or stale lyric display; return an empty successful lyrics response, foreground, and verify one retry.
+- Integration request: none.
