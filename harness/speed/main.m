@@ -10,11 +10,15 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <AVFoundation/AVFoundation.h>
 #import <stdatomic.h>
+#import <assert.h>
 
 double SGPlayerSpeed(void);
 void SGSetPlayerSpeed(double speed);
+float SGPlayerPitch(void);
 void SGSetPlayerPitch(float semitones);
 BOOL SGPlayerSpeedAllowed(void);
+BOOL SGPlayerPitchFollowsSpeed(void);
+void SGSetPlayerPitchFollowsSpeed(BOOL coupled);
 
 static const double kRate = 44100;
 static atomic_uint_fast64_t sg_decoded;
@@ -53,6 +57,18 @@ static AudioUnit make(OSType type, OSType subType) {
 
 static void check(OSStatus status, const char *what) {
     if (status) NSLog(@"[harness] %s failed: %d", what, (int)status);
+}
+
+static void checkPitchFollowToggle(void) {
+    SGSetPlayerPitchFollowsSpeed(NO);
+    SGSetPlayerPitch(3);
+    assert(SGPlayerPitch() == 3 && !SGPlayerPitchFollowsSpeed());
+    SGSetPlayerPitchFollowsSpeed(YES);
+    assert(SGPlayerPitch() == 3 && SGPlayerPitchFollowsSpeed());
+    SGSetPlayerPitchFollowsSpeed(NO);
+    assert(SGPlayerPitch() == 3 && !SGPlayerPitchFollowsSpeed());
+    SGSetPlayerPitch(0);
+    SGSetPlayerPitchFollowsSpeed(YES);
 }
 
 @interface SGRHarnessDelegate : UIResponder <UIApplicationDelegate>
@@ -123,6 +139,7 @@ static void check(OSStatus status, const char *what) {
     self.window.rootViewController = [UIViewController new];
     [self.window makeKeyAndVisible];
     [self startChain];
+    checkPitchFollowToggle();
     NSLog(@"[harness] speed allowed: %d", SGPlayerSpeedAllowed());
     [self after:1 do:^{ [self playerReports]; self->_lastDecoded = atomic_load(&sg_decoded); self->_lastAt = CACurrentMediaTime(); }];
     NSArray *script = @[
