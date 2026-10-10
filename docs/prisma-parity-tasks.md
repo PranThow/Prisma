@@ -172,6 +172,7 @@ their handoff files.
 | F05 | Navbar | `Redesigned/Playlist/PlaylistMenu.x`, `harness/playlist/mix-control-check.ps1` | Merged; macOS build and device toolbar-replacement/absent-Mix checks pending | `docs/handoffs/navbar.md` |
 | T02 | Integration | `App/ModSettings.x`, `Shared/Lyrics/LyricsSettings.m` (notice wording only) | Merged; macOS build and device unsupported-version, external-lyrics and pre-iOS 26 checks pending. Eevee not auto-detected | `docs/handoffs/integration.md` |
 | V02 | Player | `harness/player-video/check-source.py` (no source change) | Merged; macOS player-video harness/build and iOS 26 provider-order/failure/looping/fluid-fallback checks pending | `docs/handoffs/player.md` |
+| V03 | Player | - (no source change) | Merged; macOS player-video harness/build and iOS 26 transition, Low Power/Low Data, Reduce Motion and VoiceOver checks pending | `docs/handoffs/player.md` |
 
 ## Small correctness fixes
 
