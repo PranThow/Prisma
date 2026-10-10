@@ -79,6 +79,17 @@ def check():
         except FileNotFoundError:
             pass
         assert output.read_bytes() == before
+        malformed = Path(temporary) / "malformed.ipa"
+        with zipfile.ZipFile(malformed, "w") as archive:
+            archive.writestr(member, plistlib.dumps({"NSBonjourServices": "bad"}))
+            archive.writestr("Payload/Spotify.app/Spotify", b"binary unchanged")
+        before = malformed.read_bytes()
+        try:
+            metadata.package(malformed, malformed, assets)
+            raise AssertionError("malformed metadata accepted")
+        except ValueError:
+            pass
+        assert malformed.read_bytes() == before
     print("metadata preservation, atomic packaging and icon decoding passed")
 
 

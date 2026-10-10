@@ -23,3 +23,11 @@
 - Commands/results: I02 PowerShell source-contract check passed (availability, metadata, selection, completion, and error handling). `python harness/packaging/check.py` passed (`metadata preservation, atomic packaging and icon decoding passed`). `C:\\Program Files\\Git\\bin\\bash.exe -lc 'PATH=/usr/bin:/bin:$PATH; sh scripts/check-layers.sh tweak/Sources'` passed. `git diff --check` passed.
 - Blockers: Windows cannot build/sign the Prisma IPA or invoke UIKit's alternate-icon API. Device switching is required for task completion.
 - macOS and device checks owed: package/sign on macOS, then on an iPhone and iPad select Violet, Emerald, and Pearl; restore Default; verify the Home Screen result, error/unsupported handling, and the selected row after each relaunch.
+
+## C02 - preserve local-network metadata through packaging
+
+- Changed files: `harness/packaging/check.py`, `docs/parity-checklist.md`, `docs/handoffs/integration.md`, `.lane-commit-msg`.
+- Behavior: before signing, both release (`pipeline.sh`) and local-install (`install.sh`) paths use the same atomic package merge. It preserves Spotify's nonempty local-network explanation and Bonjour services, adds the Connect and Cast service types without duplicates, keeps unrelated IPA members, and rejects malformed declarations without changing the supplied IPA.
+- Commands/results: `python harness/packaging/check.py` passed (`metadata preservation, atomic packaging and icon decoding passed`); `python -m py_compile scripts/package-metadata.py harness/packaging/check.py` passed. The new regression proves malformed `NSBonjourServices` fails while an in-place input IPA remains byte-for-byte unchanged.
+- Blockers: no source blocker. Windows cannot execute the macOS release/install signing paths.
+- macOS and device checks owed: run `make release` and `make install` on macOS with a disposable decrypted IPA, then confirm the post-signing app requests local-network access with Spotify's original explanation and discovers a Connect device and Cast receiver.
