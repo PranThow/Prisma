@@ -60,7 +60,7 @@ close parity on a real device.
 - [x] **N04** Verify Native add-tab sheet and icon picker
 - [x] **F09 (Native)** Keep custom destinations selected
 - [x] **F10** Remove repeated startup and tab-layout work
-- [ ] **F05** Find the live playlist Mix control
+- [x] **F05** Find the live playlist Mix control
 
 ## Audio and Connect <!-- lane: audio-connect -->
 

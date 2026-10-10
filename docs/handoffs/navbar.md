@@ -59,3 +59,11 @@
 - **Checks:** Static source accounting: before, every bar layout ran a complete update immediately, while item callbacks scheduled one batch; after, all of those callbacks schedule at most one complete update per main-loop turn (the concrete reduction is N callbacks to one update per turn). `powershell -ExecutionPolicy Bypass -File harness/tabbar/layout-coalescing-check.ps1` (passed); `git diff --check` (passed, with line-ending warnings only).
 - **Blockers:** None in owned files. No integration request.
 - **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or measure real callback counts. On macOS/iPhone, record startup/reopen/edit layout callback and complete-update counts, then verify live add/reorder/hide/reset, late items, bar replacement, VoiceOver and Reduce Motion in both looks.
+
+## F05 - Find the live playlist Mix control
+
+- **Changed:** `tweak/Sources/Redesigned/Playlist/PlaylistMenu.x`; `harness/playlist/mix-control-check.ps1`; `docs/parity-checklist.md`; `docs/handoffs/navbar.md`; `.lane-commit-msg`.
+- **Behavior:** The Redesigned playlist sheet now re-discovers Mix from the active page after it dismisses, and fires it only when that control is still attached. A reloaded or replaced toolbar therefore cannot activate a detached cached Mix control; an absent control safely does nothing.
+- **Checks:** `powershell -ExecutionPolicy Bypass -File harness/playlist/mix-control-check.ps1` (passed); `git diff --check` (passed, with line-ending warnings only).
+- **Blockers:** None. No integration request.
+- **Remaining:** Windows cannot run `harness/playlist/build.sh`, compile the iOS tweak, or exercise Spotify's live toolbar replacement. On macOS/iPhone, reload/reopen a playlist, replace its curation toolbar before choosing Mix, and confirm only the attached Mix fires; also verify absent Mix leaves the sheet safe.
