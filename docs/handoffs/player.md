@@ -1,5 +1,12 @@
 # Player lane handoffs
 
+## U03 - Verify tap-to-seek alongside dragging
+
+- **Changed files:** `tweak/Sources/Redesigned/Player/PlayerControls.x`, `tweak/Sources/Redesigned/Player/SGRPlayerPolicy.h`, `harness/player-policy/main.c`, `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
+- **Result:** Slider taps clamp and account for RTL as before; non-finite/zero durations and an in-progress slider drag now explicitly prevent seeking. The policy regression covers invalid widths, durations, fractions, and the drag guard.
+- **Executed checks:** PowerShell source-wiring check passed. `git diff --check` passed. The policy harness could not run: this Windows host has no `cc` compiler.
+- **Blockers and device checks still owed:** Build and run `sh harness/player-policy/check.sh` on macOS. On iOS 26 with Spotify 9.1.78, verify leading/trailing and outside-track taps in LTR/RTL, no seek for unavailable/zero duration, continuous slider dragging, and that the first immersive-lyrics wake touch does not seek.
+
 ## F06 - Preserve paused cover scale through transitions
 
 - **Changed files:** `tweak/Sources/Redesigned/Player/PlayerArtwork.x`, `tweak/Sources/Redesigned/Player/SGRPlayerPolicy.h`, `harness/player-policy/main.c`.

@@ -8,6 +8,12 @@ int main(void) {
     assert(SGRPlayerTapFraction(110, 100, false) == 1);
     assert(isnan(SGRPlayerTapFraction(1, 0, false)));
     assert(isnan(SGRPlayerTapFraction(NAN, 100, false)));
+    assert(isnan(SGRPlayerTapFraction(1, INFINITY, false)));
+    assert(SGRPlayerCanTapSeek(.25, 120, false));
+    assert(!SGRPlayerCanTapSeek(.25, 0, false));
+    assert(!SGRPlayerCanTapSeek(.25, NAN, false));
+    assert(!SGRPlayerCanTapSeek(NAN, 120, false));
+    assert(!SGRPlayerCanTapSeek(.25, 120, true));
     assert(!SGRPlayerShouldImmerse(true, 13.99, 10));
     assert(SGRPlayerShouldImmerse(true, 14, 10));
     assert(!SGRPlayerShouldImmerse(false, 20, 10));

@@ -6,6 +6,9 @@ static inline double SGRPlayerTapFraction(double x, double width, bool rtl) {
     double fraction = fmin(1, fmax(0, x / width));
     return rtl ? 1 - fraction : fraction;
 }
+static inline bool SGRPlayerCanTapSeek(double fraction, double duration, bool tracking) {
+    return !tracking && isfinite(fraction) && isfinite(duration) && duration > 0;
+}
 static inline bool SGRPlayerShouldImmerse(bool eligible, double now, double lastTouch) {
     return eligible && isfinite(now) && isfinite(lastTouch) && now - lastTouch >= 4;
 }
