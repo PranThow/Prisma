@@ -294,7 +294,8 @@ static int sg_socketclose(int fd) {
     if (!SGDNSRecord(&packet, &type, 12, ttl, &instance) || !SGDNSRecord(&packet, &instance, 33, ttl, &srv) || !SGDNSRecord(&packet, &instance, 16, ttl, &text)) return;
     struct sockaddr_storage source4 = {0}, source6 = {0}; unsigned addresses = 0;
     for (NSData *address in service.addresses) {
-        if (++addresses > 8 || address.length < sizeof(struct sockaddr)) break;
+        if (++addresses > 8) break;
+        if (address.length < sizeof(struct sockaddr)) continue;
         const struct sockaddr *sa = address.bytes; SGDNSPacket value = {0};
         if (sa->sa_family == AF_INET && address.length >= sizeof(struct sockaddr_in)) {
             const struct sockaddr_in *v4 = address.bytes;
