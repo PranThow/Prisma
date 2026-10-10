@@ -19,3 +19,19 @@
 - **Checks:** `git fetch origin && git merge origin/main` (already up to date); PowerShell source-contract check for the preference plus both launch-time `dispatch_once` readers (passed); `git diff --check` (passed).
 - **Blockers:** None in the owned files. The separate-bar integration is already present but outside this task's reservation, so it was inspected only.
 - **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or validate device behavior. On macOS/iPhone, relaunch with the preference enabled and disabled; verify one player surface, no duplicate gestures/subscriptions or blank spacing, then verify Native mode remains unchanged.
+
+## N05 - Verify Redesigned add-tab sheet and icon picker
+
+- **Changed:** `harness/tabbar/editor-check.ps1`; `docs/parity-checklist.md`; `docs/handoffs/navbar.md`.
+- **Behavior:** The existing Redesigned editor remains independently persisted from Native: it normalizes and rejects unopenable Spotify links, supplies searchable Spotify glyphs and available SF Symbols with previews, and saves the title, canonical URI, selected icon, and a unique custom-tab identity.
+- **Checks:** `powershell -ExecutionPolicy Bypass -File harness/tabbar/editor-check.ps1` (passed); `git diff --check` (passed).
+- **Blockers:** None in the owned implementation. No integration request.
+- **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or exercise the sheet. On macOS/iPhone, verify add/cancel, invalid-link alert, glyph and SF previews/search, persistence across relaunch, VoiceOver/keyboard, and that switching looks preserves both configurations.
+
+## F09 (Redesigned) - Keep custom destinations selected
+
+- **Changed:** `harness/tabbar/selection-check.ps1`; `docs/parity-checklist.md`; `docs/handoffs/navbar.md`; `.lane-commit-msg`.
+- **Behavior:** Existing Redesigned navbar selection keeps a successfully opened custom destination selected while it owns navigation, clears it when a stock tab or external navigation takes over, and projects the selected custom item into the glass tab bar. Reordering retains the item identity; removing it cannot retain the weak selection.
+- **Checks:** `powershell -ExecutionPolicy Bypass -File harness/tabbar/selection-check.ps1` (passed); `git diff --check` (passed).
+- **Blockers:** None. No integration request.
+- **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or validate navigation against Spotify. On macOS/iPhone, open a custom link, push and pop, switch stock tabs, reorder/remove the selected custom tab, and verify the selected glass item follows the active destination without stale highlights.

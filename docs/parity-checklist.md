@@ -55,9 +55,10 @@ close parity on a real device.
 - [x] **N01** Verify mini-player accessory content and actions
 - [x] **N02** Verify compact accessory layout and minimization
 - [x] **N03** Complete mini-player preference and mode switching
-- [ ] **N05** Verify Redesigned add-tab sheet and icon picker
-- [ ] **F09** Keep custom destinations selected in each Navbar
+- [x] **N05** Verify Redesigned add-tab sheet and icon picker
+- [x] **F09 (Redesigned)** Keep custom destinations selected
 - [ ] **N04** Verify Native add-tab sheet and icon picker
+- [ ] **F09 (Native)** Keep custom destinations selected
 - [ ] **F10** Remove repeated startup and tab-layout work
 - [ ] **F05** Find the live playlist Mix control
 
