@@ -340,7 +340,7 @@ void SGSetPlayerPitch(float value) {
 }
 BOOL SGPlayerPitchFollowsSpeed(void) { return coupled; }
 void SGSetPlayerPitchFollowsSpeed(BOOL value) {
-    pthread_mutex_lock(&lock); coupled = value; semitones = 0; pthread_mutex_unlock(&lock);
+    pthread_mutex_lock(&lock); coupled = value; pthread_mutex_unlock(&lock);
     SGSetEnabled(SGKeyPitchFollowsSpeed, value); apply(YES);
 }
 %hook SPTPlayerState
