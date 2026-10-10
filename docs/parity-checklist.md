@@ -88,7 +88,7 @@ close parity on a real device.
 
 ## Integration owner <!-- lane: integration -->
 
-- [ ] **F04** Reattach one Mod Settings drawer row
+- [x] **F04** Reattach one Mod Settings drawer row
 - [ ] **I01** Verify Prisma icon assets and safe packaging
 - [ ] **I02** Verify alternate icon selection and availability
 - [ ] **C02** Preserve local-network metadata through packaging
