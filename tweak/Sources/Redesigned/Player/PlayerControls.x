@@ -39,7 +39,7 @@
     double fraction = SGRPlayerTapFraction([tap locationInView:slider].x - track.origin.x, track.size.width,
         slider.effectiveUserInterfaceLayoutDirection == UIUserInterfaceLayoutDirectionRightToLeft);
     double duration = SGPlayerState().duration;
-    if (!isfinite(fraction) || !isfinite(duration) || duration <= 0) return;
+    if (!SGRPlayerCanTapSeek(fraction, duration, slider.tracking)) return;
     slider.value = slider.minimumValue + fraction * (slider.maximumValue - slider.minimumValue);
     SGKaraokeSeek((NSInteger)(duration * fraction * 1000));
 }

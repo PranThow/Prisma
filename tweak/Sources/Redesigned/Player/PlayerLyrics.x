@@ -389,6 +389,7 @@ static void setOpen(BOOL open, BOOL animated) {
         SGRPlayerCoverList().alpha = 1;
         SGRPlayerSetCoverHidden(NO);
         [overlay removeFromSuperview];
+        UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, SGRPlayerCoverList());
     };
 
     if (!animated) {

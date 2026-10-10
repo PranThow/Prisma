@@ -1,5 +1,12 @@
 # Player lane handoffs
 
+## U03 - Verify tap-to-seek alongside dragging
+
+- **Changed files:** `tweak/Sources/Redesigned/Player/PlayerControls.x`, `tweak/Sources/Redesigned/Player/SGRPlayerPolicy.h`, `harness/player-policy/main.c`, `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
+- **Result:** Slider taps clamp and account for RTL as before; non-finite/zero durations and an in-progress slider drag now explicitly prevent seeking. The policy regression covers invalid widths, durations, fractions, and the drag guard.
+- **Executed checks:** PowerShell source-wiring check passed. `git diff --check` passed. The policy harness could not run: this Windows host has no `cc` compiler.
+- **Blockers and device checks still owed:** Build and run `sh harness/player-policy/check.sh` on macOS. On iOS 26 with Spotify 9.1.78, verify leading/trailing and outside-track taps in LTR/RTL, no seek for unavailable/zero duration, continuous slider dragging, and that the first immersive-lyrics wake touch does not seek.
+
 ## F06 - Preserve paused cover scale through transitions
 
 - **Changed files:** `tweak/Sources/Redesigned/Player/PlayerArtwork.x`, `tweak/Sources/Redesigned/Player/SGRPlayerPolicy.h`, `harness/player-policy/main.c`.
@@ -38,3 +45,10 @@
 - **Result:** Immersive lyrics already use one invalidated idle timer and remain ineligible while playback is paused, the app is inactive, VoiceOver is running, a sheet is presented, or a player transition is active. The policy regression now also rejects a non-finite last-touch timestamp.
 - **Executed checks:** `git diff --check` passed. PowerShell source wiring check passed (`U01 source wiring check passed`). `sh harness/player-policy/check.sh` could not run because this Windows host has no `sh` command.
 - **Remaining blockers and device checks:** Build and run `sh harness/player-policy/check.sh` on macOS. On iOS 26 with Spotify 9.1.78, verify four-second expansion during untouched playback; cancellation and restoration for pause, VoiceOver, app background/foreground, presented sheets, and player transitions; and rapid state changes for duplicate timers or stale callbacks.
+
+## U02 - Verify wake-touch consumption and thumbnail return
+
+- **Changed files:** `tweak/Sources/Redesigned/Player/PlayerLyrics.x`, `docs/parity-checklist.md`, `docs/handoffs/player.md`.
+- **Result:** The existing wake recognizer consumes the first touch only while immersive lyrics are active, restoring the faded controls before it can activate a lyric or control. The thumbnail already closes lyrics; once its close transition restores Spotify's cover, VoiceOver is now moved to that restored artwork rather than the removed thumbnail.
+- **Executed checks:** `git diff --check` passed. PowerShell source wiring check passed: the wake recognizer records the immersive state before restoring controls, cancels/delays touches, and the close completion restores the cover before posting a layout change to it.
+- **Remaining blockers and device checks:** Build on macOS, then on iOS 26 with Spotify 9.1.78 verify the first touch during immersive lyrics only wakes controls; a subsequent lyric/control gesture works; thumbnail return restores artwork and VoiceOver focus; and taps/drags remain safe while immersion begins or ends.

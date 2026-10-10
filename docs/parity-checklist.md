@@ -25,8 +25,8 @@ close parity on a real device.
 - [x] **F07** Verify Free-player class and selector contracts
 - [ ] **F08** Complete verified Free-player hooks — blocked: needs recorded Free-player trees (`make session`) and the Spotify binary
 - [x] **U01** Verify four-second immersive lyrics eligibility
-- [ ] **U02** Verify wake-touch consumption and thumbnail return
-- [ ] **U03** Verify tap-to-seek alongside dragging
+- [x] **U02** Verify wake-touch consumption and thumbnail return
+- [x] **U03** Verify tap-to-seek alongside dragging
 - [ ] **B01** Verify the cover-based fluid renderer
 - [ ] **B02** Complete fluid controls, preview, reset and migration
 - [ ] **B03** Verify fluid player lifecycle
