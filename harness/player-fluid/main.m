@@ -14,8 +14,12 @@ int main(void) { @autoreleasepool {
         @"inputColor0":[CIColor colorWithRed:1 green:.2 blue:.1],
         @"inputColor1":[CIColor colorWithRed:.1 green:.2 blue:1], @"inputWidth":@20}].outputImage
         imageByCroppingToRect:CGRectMake(0, 0, 160, 160)];
+    CIImage *otherCover = [[CIFilter filterWithName:@"CIConstantColorGenerator" withInputParameters:@{
+        kCIInputColorKey:[CIColor colorWithRed:.1 green:.8 blue:.3]}].outputImage
+        imageByCroppingToRect:CGRectMake(0, 0, 160, 160)];
     NSData *still = pixels(context, SGRFluidFrame(cover, 0, 1.2, 12, 1.2, -.18));
     assert([still isEqual:pixels(context, SGRFluidFrame(cover, 0, 1.2, 12, 1.2, -.18))]);
+    assert(![still isEqual:pixels(context, SGRFluidFrame(otherCover, 0, 1.2, 12, 1.2, -.18))]);
     assert(![still isEqual:pixels(context, SGRFluidFrame(cover, 5, 1.2, 12, 1.2, -.18))]);
     assert(![still isEqual:pixels(context, SGRFluidFrame(cover, 0, 1.2, 0, 1.2, -.18))]);
     assert(![still isEqual:pixels(context, SGRFluidFrame(cover, 0, 1.2, 12, 0, -.18))]);

@@ -52,3 +52,10 @@
 - **Result:** The existing wake recognizer consumes the first touch only while immersive lyrics are active, restoring the faded controls before it can activate a lyric or control. The thumbnail already closes lyrics; once its close transition restores Spotify's cover, VoiceOver is now moved to that restored artwork rather than the removed thumbnail.
 - **Executed checks:** `git diff --check` passed. PowerShell source wiring check passed: the wake recognizer records the immersive state before restoring controls, cancels/delays touches, and the close completion restores the cover before posting a layout change to it.
 - **Remaining blockers and device checks:** Build on macOS, then on iOS 26 with Spotify 9.1.78 verify the first touch during immersive lyrics only wakes controls; a subsequent lyric/control gesture works; thumbnail return restores artwork and VoiceOver focus; and taps/drags remain safe while immersion begins or ends.
+
+## B01 - Verify the cover-based fluid renderer
+
+- **Changed files:** `harness/player-fluid/main.m`, `harness/player-fluid/check.sh`, `harness/player-fluid/check-source.py`, `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
+- **Result:** The existing renderer remains the bounded 160×160 Core Image cover warp/blur/color pipeline on one serial queue. It clamps every persisted parameter, retains the last frame while paused, and rejects superseded generations before publishing. Regressions now prove the frame changes with a different supplied cover and assert the serial-queue/stale-generation source contract.
+- **Executed checks:** `python harness/player-fluid/check-source.py` passed (`Fluid source: serial renderer and stale-cover rejection passed`). `git diff --check` passed.
+- **Remaining blockers and device checks:** Run `sh harness/player-fluid/check.sh` and `env -u MAKELEVEL gmake -C tweak clean package` on macOS. On iOS 26 with Spotify 9.1.78, exercise rapid A→B→A cover replacement, pause/resume, Reduce Motion and Low Power Mode; confirm no stale frame is published and that transitions stay smooth.

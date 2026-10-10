@@ -27,7 +27,7 @@ close parity on a real device.
 - [x] **U01** Verify four-second immersive lyrics eligibility
 - [x] **U02** Verify wake-touch consumption and thumbnail return
 - [x] **U03** Verify tap-to-seek alongside dragging
-- [ ] **B01** Verify the cover-based fluid renderer
+- [x] **B01** Verify the cover-based fluid renderer
 - [ ] **B02** Complete fluid controls, preview, reset and migration
 - [ ] **B03** Verify fluid player lifecycle
 - [ ] **V01** Verify independent visible-consumer artwork requests
