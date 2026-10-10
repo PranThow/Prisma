@@ -15,7 +15,7 @@ SGModSection *SGLyricsSourcesSection(BOOL namingSource) {
     NSMutableArray<SGModRow *> *rows = [NSMutableArray arrayWithObjects:sources,
         SGPageRow(@"Spicy Lyrics", ^UIViewController *{ return SGSpicyLyricsSettingsPage(); }),
         SGOptionRow(@"Lyrics for every track", @"Even where Spotify has none", SGKeyLyricsAllTracks),
-        SGOptionRow(@"Another tweak replaces lyrics", @"Disable Prisma's source hooks and forced lyrics flags; restart required", SGKeyExternalLyricsReplacement), nil];
+        SGOptionRow(@"Another tweak replaces lyrics", @"Enable manually; Eevee is not detected automatically. Restart required", SGKeyExternalLyricsReplacement), nil];
     if (namingSource) [rows addObject:SGOptionRow(@"Show source", nil, SGKeyLyricsCredit)];
     return SGSection(@"Sources", rows);
 }

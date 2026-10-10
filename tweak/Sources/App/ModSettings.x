@@ -49,7 +49,7 @@ static UIViewController *modSettingsPage(void) {
     if (SGFlag(SGKeyExternalLyricsReplacement, NO)) {
         [sections addObject:SGNotedSection(@"Lyrics compatibility", @[
             SGStatRow(@"External lyrics replacement", ^NSString *{ return @"On"; }),
-        ], @"Prisma's source hooks and forced lyrics flags are disabled. Turn this off in Lyrics only after disabling the other tweak's replacement, then restart Spotify.")];
+        ], @"Prisma's source hooks and forced lyrics flags are disabled. Eevee is not detected automatically; turn this off in Lyrics only after disabling the other tweak's replacement, then restart Spotify.")];
     }
     SGModRow *mod = pageRow(@"Mod", @"info.circle", ^UIViewController *{ return SGAboutPage(); });
     mod.value = ^NSString *{ return @(SG_VERSION); };
