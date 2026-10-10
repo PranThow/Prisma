@@ -122,6 +122,12 @@ their handoff files.
 | P01-P04 | Updates/Evidence | - | Recommendations recorded | `docs/handoffs/updates-evidence.md` |
 | F06 | Player | `Redesigned/Player/PlayerArtwork.x`, `SGRPlayerPolicy.h`, `harness/player-policy/main.c` | Merged; macOS harness and paused open/close device check pending | `docs/handoffs/player.md` |
 | A01-A05, H01-H03 | Artwork/Album | - (no changes) | Source parity confirmed; macOS harnesses and device checks pending. E01-E03 not checked | `docs/handoffs/artwork-album.md` |
+| F03 | Lyrics | `harness/audio-lyrics/check.py` (no source change) | Merged; device check pending. Eevee not auto-detected | `docs/handoffs/lyrics.md` |
+| N02 | Navbar | `harness/tabbar/main.m` (no source change) | Merged; touch/scroll simulator check pending | `docs/handoffs/navbar.md` |
+| D01-D03 | Audio/Connect | - (no change) | Reviewed; macOS audio harness pending | `docs/handoffs/audio-connect.md` |
+| C01/C03 | Audio/Connect | `Shared/Navigation/ConnectDiscovery.x` | Merged; socket harness and real Connect/Cast devices pending | `docs/handoffs/audio-connect.md` |
+| E01-E03 | Artwork/Album | - (no change) | Source parity confirmed; macOS harness and iOS 26 device pending | `docs/handoffs/artwork-album.md` |
+| F07 | Player | `harness/objc-evidence/check.py` | Uncommitted, not merged. F08 blocked on Free-player trees | - |
 
 ## Small correctness fixes
 
