@@ -13,5 +13,7 @@ int main(void) {
     assert(!SGRPlayerShouldImmerse(false, 20, 10));
     assert(!SGRPlayerShouldImmerse(true, NAN, 10));
     assert(!SGRPlayerShouldImmerse(true, 10, 20));
+    assert(SGRPlayerDisplayedCoverScale(true, .84, 1) == .84);
+    assert(SGRPlayerDisplayedCoverScale(false, .84, 1) == 1);
     puts("Player: bounded/RTL seeking and four-second idle policy passed");
 }
