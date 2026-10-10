@@ -150,6 +150,14 @@ their handoff files.
 | L01 | Lyrics | `harness/audio-lyrics/check.py` (no source change) | Merged; macOS parser and device key/network checks pending | `docs/handoffs/lyrics.md` |
 | N03 | Navbar | - (no change) | Verified at source; relaunch both preference states on device | `docs/handoffs/navbar.md` |
 | U01 | Player | `harness/player-policy/main.c` | Merged; macOS harness and iOS 26 idle-timer checks pending | `docs/handoffs/player.md` |
+| L02 | Lyrics | `harness/audio-lyrics/check.py` (no source change) | Merged; macOS runtime assertions and device reorder/lock-screen checks pending | `docs/handoffs/lyrics.md` |
+| L03 | Lyrics | - (no change) | Merged; device link activation and VoiceOver checks pending in both looks | `docs/handoffs/lyrics.md` |
+| U02 | Player | `Redesigned/Player/PlayerLyrics.x` | Merged; macOS build and iOS 26 wake-touch/VoiceOver focus checks pending | `docs/handoffs/player.md` |
+| U03 | Player | `Redesigned/Player/PlayerControls.x`, `SGRPlayerPolicy.h`, `harness/player-policy/main.c` | Merged; macOS policy harness and LTR/RTL tap-seek device checks pending | `docs/handoffs/player.md` |
+| N05 | Navbar | `harness/tabbar/editor-check.ps1` (no source change) | Merged; macOS harness and editor device checks pending | `docs/handoffs/navbar.md` |
+| F09 (Redesigned) | Navbar | `harness/tabbar/selection-check.ps1` (no source change) | Merged; device navigation checks pending. Native half not started | `docs/handoffs/navbar.md` |
+| F04 | Integration | - (`App/ModSettings.x` already compliant) | Merged; macOS build and drawer rebuild device check pending | `docs/handoffs/integration.md` |
+| I01 | Integration | `harness/packaging/check.py` | Merged; macOS signing and iPhone/iPad icon checks pending. Static PNGs, not layered assets | `docs/handoffs/integration.md` |
 
 ## Small correctness fixes
 
