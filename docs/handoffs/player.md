@@ -1,5 +1,12 @@
 # Player lane handoffs
 
+## M01 - Establish the real Spotify action-menu contract
+
+- **Changed files:** `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
+- **Result:** Blocked without inventing action behavior. `PlayerHeader.x` proves only the More button identifier and hands it to the existing Speed/pitch observer. `SpeedPitchMenu.x` proves the context-menu controller's UIKit layout/appearance hooks and table insertion, but its comments and implementation correctly leave Spotify's opaque Swift item factories, action enumeration, cached initial rows, refresh, share and navigation behavior untouched.
+- **Executed checks:** PowerShell evidence inventory passed: `rg --files trees out tweak | rg -i 'menu|context|player|spotify$|evidence'` confirmed no recorded trees or local executable are available; `rg -n 'ContextMenu|ItemFactory|HeaderElements|now-playing-minimize-button|Context menu' ...` confirmed the current hook contains no action-model selector contract. `git diff --check` passed.
+- **Blockers and macOS/device checks still owed:** Supply the decrypted Spotify 9.1.78 executable matching UUID `C712370B-44CD-35C8-A058-4FBED1AD0758`, with Swift metadata/disassembly sufficient to prove action model and callback selector/type/lifetime contracts. Record the player More menu on that build from initial presentation through loading/refresh, each share/navigation action, dismissal, and a track switch while open. Then establish M02's exact actions and stale-track behavior on iOS 26.
+
 ## V03 - Verify video cover transitions and accessibility
 
 - **Changed files:** `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
