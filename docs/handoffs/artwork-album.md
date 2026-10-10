@@ -13,6 +13,14 @@
 
 `E01`–`E03` were not checked in this handoff.
 
+## Entity-page follow-up
+
+- **E01:** `SGRArtworkField` increments a generation for every palette request and drops stale completions. `SGRFinishEntityPage` keeps header and body hidden until both content and artwork are available, then reveals them together; its one-second fallback handles missing or slow content.
+- **E02 (album):** `AlbumHeader.x` follows the live cover image, including a late image after the first layout pass, and passes that same image to the field. The album reveal uses `SGRHeaderInfo` content readiness plus the header artwork check. Reused list/footer cells restore their normal state in `prepareForReuse`.
+- **E03:** Creator portraits are copied only from available circular images and are refreshed through the current creator control, so a reused header cannot retain an old portrait. The entity fade is noninteractive, inaccessible, and sized from the current safe-area bottom inset.
+
+No production change was needed: the existing implementation meets the source-level criteria. The seven focused source-contract assertions and `scripts/check-layers.sh tweak/Sources` passed on Windows. The macOS album harness and iOS 26 device checks remain required for timing, real reuse, scrolling, and safe-area behavior.
+
 ## Commands run
 
 ```text
