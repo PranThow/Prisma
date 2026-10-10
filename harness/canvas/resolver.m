@@ -118,9 +118,13 @@ int main(void) { @autoreleasepool {
     [NSUserDefaults.standardUserDefaults setVolatileDomain:@{SGKeyAnimatedArtwork:@NO,
         SGKeyAnimatedArtworkProviders:@[]} forName:NSArgumentDomain];
     NSObject *consumer = [NSObject new];
+    NSObject *otherConsumer = [NSObject new];
     SGCanvasSetConsumerActive(consumer, YES);
     assert([SGCanvasCurrentResult().trackURI isEqual:state.track.URI]);
+    SGCanvasSetConsumerActive(otherConsumer, YES);
     SGCanvasSetConsumerActive(consumer, NO);
+    assert([SGCanvasCurrentResult().trackURI isEqual:state.track.URI]);
+    SGCanvasSetConsumerActive(otherConsumer, NO);
     assert(!SGCanvasCurrentResult() && !resolver.task);
     [NSUserDefaults.standardUserDefaults removeVolatileDomainForName:NSArgumentDomain];
     puts("Canvas resolver: disablement, cancellation, unsupported keys and re-enable passed");
