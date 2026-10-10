@@ -31,3 +31,10 @@
   It cannot prove the Free view hierarchy or the identifiers consumed by the shared styling helpers.
   Record a Spotify 9.1.78 Free-player tree for each row before changing the four Player hook files;
   otherwise F08 remains blocked.
+
+## U01 - Verify four-second immersive lyrics eligibility
+
+- **Changed files:** `harness/player-policy/main.c`.
+- **Result:** Immersive lyrics already use one invalidated idle timer and remain ineligible while playback is paused, the app is inactive, VoiceOver is running, a sheet is presented, or a player transition is active. The policy regression now also rejects a non-finite last-touch timestamp.
+- **Executed checks:** `git diff --check` passed. PowerShell source wiring check passed (`U01 source wiring check passed`). `sh harness/player-policy/check.sh` could not run because this Windows host has no `sh` command.
+- **Remaining blockers and device checks:** Build and run `sh harness/player-policy/check.sh` on macOS. On iOS 26 with Spotify 9.1.78, verify four-second expansion during untouched playback; cancellation and restoration for pause, VoiceOver, app background/foreground, presented sheets, and player transitions; and rapid state changes for duplicate timers or stale callbacks.
