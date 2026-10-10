@@ -158,6 +158,10 @@ their handoff files.
 | F09 (Redesigned) | Navbar | `harness/tabbar/selection-check.ps1` (no source change) | Merged; device navigation checks pending. Native half not started | `docs/handoffs/navbar.md` |
 | F04 | Integration | - (`App/ModSettings.x` already compliant) | Merged; macOS build and drawer rebuild device check pending | `docs/handoffs/integration.md` |
 | I01 | Integration | `harness/packaging/check.py` | Merged; macOS signing and iPhone/iPad icon checks pending. Static PNGs, not layered assets | `docs/handoffs/integration.md` |
+| F02 | Lyrics | `Shared/Lyrics/KaraokeSource.x`, `harness/audio-lyrics/check.py` | Merged; macOS runtime assertions and device background/foreground retry checks pending | `docs/handoffs/lyrics.md` |
+| B01 | Player | `harness/player-fluid/main.m`, `check.sh`, `check-source.py` (no source change) | Merged; macOS Core Image harness and iOS 26 cover-replacement/transition checks pending | `docs/handoffs/player.md` |
+| N04 | Navbar | `Native/Navbar/NavbarSettings.m`, `harness/tabbar/native-editor-check.ps1` | Merged; macOS build and editor sheet/VoiceOver/persistence device checks pending | `docs/handoffs/navbar.md` |
+| I02 | Integration | - (no source change) | Blocked: needs macOS build/signing and iPhone/iPad icon switching | `docs/handoffs/integration.md` |
 
 ## Small correctness fixes
 
