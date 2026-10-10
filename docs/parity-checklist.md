@@ -32,7 +32,7 @@ close parity on a real device.
 - [x] **B03** Verify fluid player lifecycle
 - [x] **V01** Verify independent visible-consumer artwork requests
 - [x] **V02** Verify looping video, provider order and fluid fallback
-- [ ] **V03** Verify video cover transitions and accessibility
+- [x] **V03** Verify video cover transitions and accessibility
 - [ ] **M01** Establish the real Spotify action-menu contract
 - [ ] **M02** Present the verified actions in a system menu
 

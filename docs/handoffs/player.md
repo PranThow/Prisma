@@ -1,5 +1,12 @@
 # Player lane handoffs
 
+## V03 - Verify video cover transitions and accessibility
+
+- **Changed files:** `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
+- **Result:** The existing player-video integration keeps the Spotify cover visible until its video surface is ready, hides only the cover and shadow while video is active, and restores them for pending, failed, stopped, paused, dismissed, foreground/power/motion-policy, and player-transition states. The video layer neither receives touches nor participates in VoiceOver; the existing artwork-list gesture attachment therefore remains available for swipe-to-skip and player controls remain exposed. Artwork layout re-applies visibility when a cover changes during video playback, so a skip cannot reveal a replacement cover under the video.
+- **Executed checks:** `python harness/player-video/check-source.py` passed (ordered fallback, leased looping playback, readiness and stale/failure fallback). `python -m py_compile harness/player-video/check-source.py` and `git diff --check` passed.
+- **Blockers and device checks still owed:** Run `sh harness/player-video/check.sh` and `env -u MAKELEVEL gmake -C tweak clean package` on macOS. On iOS 26 with Spotify 9.1.78, exercise player open/close and interrupted transitions, swipe-to-skip, pause/dismiss/foreground, Low Power Mode, Low Data Mode, Reduce Motion and video-autoplay changes; verify the cover always returns after pending/failure/stop, playback is paused off-policy, and VoiceOver/player controls remain usable.
+
 ## V02 - Verify looping video, provider order and fluid fallback
 
 - **Changed files:** `harness/player-video/check-source.py`, `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
