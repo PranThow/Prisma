@@ -31,3 +31,11 @@
 - Commands/results: `python harness/packaging/check.py` passed (`metadata preservation, atomic packaging and icon decoding passed`); `python -m py_compile scripts/package-metadata.py harness/packaging/check.py` passed. The new regression proves malformed `NSBonjourServices` fails while an in-place input IPA remains byte-for-byte unchanged.
 - Blockers: no source blocker. Windows cannot execute the macOS release/install signing paths.
 - macOS and device checks owed: run `make release` and `make install` on macOS with a disposable decrypted IPA, then confirm the post-signing app requests local-network access with Spotify's original explanation and discovers a Connect device and Cast receiver.
+
+## T01 - verify the composed settings destinations
+
+- Changed files: `docs/parity-checklist.md`, `docs/handoffs/integration.md`, `.lane-commit-msg`. No production source change was needed.
+- Behavior: the existing root keeps separate Lyrics and Redesigned-only Karaoke entries; Albums opens the stored look's matching page. Player keeps Native-only Now playing bar, Queue & devices, and player-screen rows separate from Redesigned Now playing, while Home & Library remains Native-only. All composed destinations are `SGModPage`-compatible or existing page-controller factories, with no dangling function reference found.
+- Commands/results: T01 PowerShell source-contract check passed (root destinations, look gates, shared/native Lyrics rows, Karaoke `SGModPage`, Albums selection, and Player destination selection). `C:\\Program Files\\Git\\bin\\bash.exe -lc 'PATH=/usr/bin:/bin:$PATH; sh scripts/check-layers.sh tweak/Sources'` passed. `git diff --check` passed.
+- Blockers: no source blocker. Windows cannot compile the Objective-C tweak or exercise Spotify navigation/reset behavior.
+- macOS and device checks owed: compile on macOS, then on Spotify 9.1.78 open every root destination in both looks; switch looks and restart; confirm the correct look-only rows, lyrics/Karaoke separation, album and background pages, and persisted/reset settings with no dead links.
