@@ -1,6 +1,11 @@
 // Numeric release components and SemVer prerelease precedence; build metadata has no precedence.
 #import <Foundation/Foundation.h>
 
+static inline BOOL SGVersionNumeric(NSString *part) {
+    return part.length && [part rangeOfCharacterFromSet:
+        [NSCharacterSet characterSetWithCharactersInString:@"0123456789"].invertedSet].location == NSNotFound;
+}
+
 static inline NSArray<NSString *> *SGVersionParts(NSString *version) {
     if (![version isKindOfClass:NSString.class]) return nil;
     static NSRegularExpression *syntax;
@@ -12,12 +17,11 @@ static inline NSArray<NSString *> *SGVersionParts(NSString *version) {
     });
     NSTextCheckingResult *match = [syntax firstMatchInString:version options:0 range:NSMakeRange(0, version.length)];
     if (!match || !NSEqualRanges(match.range, NSMakeRange(0, version.length))) return nil;
-    return [[version componentsSeparatedByString:@"+"].firstObject componentsSeparatedByString:@"-"];
-}
-
-static inline BOOL SGVersionNumeric(NSString *part) {
-    return part.length && [part rangeOfCharacterFromSet:
-        [NSCharacterSet characterSetWithCharactersInString:@"0123456789"].invertedSet].location == NSNotFound;
+    NSArray<NSString *> *parts = [[version componentsSeparatedByString:@"+"].firstObject componentsSeparatedByString:@"-"];
+    NSString *prerelease = parts.count > 1 ? [[parts subarrayWithRange:NSMakeRange(1, parts.count - 1)] componentsJoinedByString:@"-"] : nil;
+    for (NSString *identifier in [prerelease componentsSeparatedByString:@"."])
+        if (identifier.length > 1 && [identifier hasPrefix:@"0"] && SGVersionNumeric(identifier)) return nil;
+    return parts;
 }
 
 static inline NSComparisonResult SGVersionNumberCompare(NSString *a, NSString *b) {
@@ -57,5 +61,6 @@ static inline NSComparisonResult SGVersionCompare(NSString *a, NSString *b) {
 }
 
 static inline BOOL SGVersionAllowed(NSString *version, BOOL flaggedPrerelease, NSString *build) {
-    return SGVersionParts(version) && (SGVersionPrerelease(build) || (!flaggedPrerelease && !SGVersionPrerelease(version)));
+    if (!SGVersionParts(version) || flaggedPrerelease != SGVersionPrerelease(version)) return NO;
+    return SGVersionPrerelease(build) || !flaggedPrerelease;
 }
