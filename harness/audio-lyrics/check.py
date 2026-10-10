@@ -19,6 +19,9 @@ hook = (SRC / 'Shared/LyricsSources/LyricsHook.x').read_text(encoding='utf-8')
 page = hook[hook.index('static NSData *defaultColours'):hook.index('static NSString *timingName')]
 assert 'previous = MAX(previous, start)' in page
 assert 'SGKeyExternalLyricsReplacement' in sources
+assert 'return !SGFlag(SGKeyExternalLyricsReplacement, NO) && SGLyricsOrder().count > 0;' in sources
+assert 'dispatch_once(&once, ^{ on = SGLyricsEnabled(); });' in sources
+assert 'if (!SGLyricsEnabled()) return;' in hook
 karaoke = (SRC / 'Shared/Lyrics/KaraokeSource.x').read_text(encoding='utf-8')
 assert 'SGAddPlayerStateObserver(sg_stateObserver)' in karaoke
 assert 'UIApplicationDidBecomeActiveNotification' in karaoke
