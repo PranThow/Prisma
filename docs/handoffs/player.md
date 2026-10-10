@@ -1,5 +1,12 @@
 # Player lane handoffs
 
+## V02 - Verify looping video, provider order and fluid fallback
+
+- **Changed files:** `harness/player-video/check-source.py`, `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
+- **Result:** The existing player video consumer independently normalizes the Canvas/Apple order, retains the prepared-video lease, loops ready video with `AVPlayerLooper`, and only covers the fluid field after the video surface is ready. Lookup, preparation and playback failures advance to the next provider; exhausted providers leave the fluid field visible. Generation guards discard late work after track/provider changes, and Canvas consumer activation stays independent of lock-screen settings.
+- **Executed checks:** `python harness/player-video/check-source.py` passed (ordered fallback, leased looping playback, readiness and stale/failure fallback). `python -m py_compile harness/player-video/check-source.py` and `git diff --check` passed.
+- **Blockers and device checks still owed:** Run `sh harness/player-video/check.sh` and `env -u MAKELEVEL gmake -C tweak clean package` on macOS. On iOS 26 with Spotify 9.1.78, exercise both provider orders, lookup/preparation/player failures, rapid A-to-B-to-A changes, looping through an end boundary, and all-miss fluid fallback; verify neither provider preference changes lock-screen order.
+
 ## V01 - Verify independent visible-consumer artwork requests
 
 - **Changed files:** `harness/canvas/resolver.m`, `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
