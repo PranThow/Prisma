@@ -51,3 +51,11 @@
 - **Checks:** `powershell -ExecutionPolicy Bypass -File harness/tabbar/native-selection-check.ps1` (passed); `git diff --check` (passed).
 - **Blockers:** None. No integration request.
 - **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or validate navigation against Spotify. On macOS/iPhone, open a custom link, push and pop, switch stock tabs, reorder/remove the selected custom tab, and verify selection never goes stale.
+
+## F10 - Remove repeated startup and tab-layout work
+
+- **Changed:** `tweak/Sources/Native/Navbar/TabBarHooks.x`; `tweak/Sources/Redesigned/Navbar/TabBar.x`; `harness/tabbar/layout-coalescing-check.ps1`; `docs/parity-checklist.md`; `docs/handoffs/navbar.md`; `.lane-commit-msg`.
+- **Behavior:** Native and Redesigned now share each look's bar and item layout callbacks through one main-queue update per bar. That update still composes tabs, attaches the Home hold, refreshes the Redesigned glass bar, and emits the cached diagnostic. Live editor changes continue to request a layout and therefore reach the same update path.
+- **Checks:** Static source accounting: before, every bar layout ran a complete update immediately, while item callbacks scheduled one batch; after, all of those callbacks schedule at most one complete update per main-loop turn (the concrete reduction is N callbacks to one update per turn). `powershell -ExecutionPolicy Bypass -File harness/tabbar/layout-coalescing-check.ps1` (passed); `git diff --check` (passed, with line-ending warnings only).
+- **Blockers:** None in owned files. No integration request.
+- **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or measure real callback counts. On macOS/iPhone, record startup/reopen/edit layout callback and complete-update counts, then verify live add/reorder/hide/reset, late items, bar replacement, VoiceOver and Reduce Motion in both looks.

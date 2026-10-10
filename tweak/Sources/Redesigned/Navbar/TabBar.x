@@ -470,6 +470,27 @@ static UIView *tabBarOf(UIView *item) {
     return nil;
 }
 
+static void updateTabBar(UIView *bar) {
+    SGRComposeTabBar(bar);
+    holdHome(bar);
+    syncBar(bar);
+    SGRLogTabBarRow(bar);
+}
+
+// Spotify lays out the bar and each arriving item in one turn; one update sees the settled row.
+static char kPendingUpdateKey;
+static void requestTabBarUpdate(UIView *bar) {
+    if (!bar || [objc_getAssociatedObject(bar, &kPendingUpdateKey) boolValue]) return;
+    objc_setAssociatedObject(bar, &kPendingUpdateKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIView *weakBar = bar;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIView *liveBar = weakBar;
+        if (!liveBar) return;
+        objc_setAssociatedObject(liveBar, &kPendingUpdateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        updateTabBar(liveBar);
+    });
+}
+
 %hook _TtC23NavigationUI_TabBarImpl10TabBarView
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *host = objc_getAssociatedObject(self, &kHostKey);
@@ -482,31 +503,17 @@ static UIView *tabBarOf(UIView *item) {
 }
 - (void)layoutSubviews {
     %orig;
-    SGRComposeTabBar((UIView *)self);
+    requestTabBarUpdate((UIView *)self);
     for (UIView *sub in ((UIView *)self).subviews) {
         if (![sub isKindOfClass:SGRTabBarHost.class]) [sub layoutIfNeeded];
     }
-    holdHome((UIView *)self);
-    syncBar((UIView *)self);
-    SGRLogTabBarRow((UIView *)self);
 }
 %end
 
 // The bar's own pass runs before Spotify has filled the row; the items lay out as they arrive.
-static char kPendingLayoutKey;
 static void itemDidLayOut(UIView *item) {
     UIView *bar = tabBarOf(item);
-    if (!bar || [objc_getAssociatedObject(bar, &kPendingLayoutKey) boolValue]) return;
-    objc_setAssociatedObject(bar, &kPendingLayoutKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    __weak UIView *weakBar = bar;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (!weakBar) return;
-        objc_setAssociatedObject(weakBar, &kPendingLayoutKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        SGRComposeTabBar(weakBar);
-        holdHome(weakBar);
-        syncBar(weakBar);
-        SGRLogTabBarRow(weakBar);
-    });
+    requestTabBarUpdate(bar);
 }
 
 %hook _TtC23NavigationUI_TabBarImpl21TabBarItemElementView
