@@ -14,6 +14,18 @@ OUT.mkdir(exist_ok=True)
 provider = (SRC / 'Shared/LyricsSources/SpicyLyrics.m').read_text(encoding='utf-8')
 parser = provider[provider.index('static BOOL token'):provider.index('@interface SGSpicyRequest')]
 sources = (SRC / 'Shared/LyricsSources/LyricsSources.m').read_text(encoding='utf-8')
+assert 'if (!token(key, @"sl_pk_", 512)' in provider
+assert 'if (status == 401 || status == 403)' in provider
+assert 'response.expectedContentLength > 2 * 1024 * 1024' in provider
+assert 'self.body.length + data.length > 2 * 1024 * 1024' in provider
+assert 'willPerformHTTPRedirection' in provider and 'handler(nil)' in provider
+assert 'if (![key isEqualToString:[NSUserDefaults.standardUserDefaults stringForKey:kKey]])' in provider
+assert 'status == 429 || status >= 500' in provider
+assert 'MIN(10 * pow(2, sg_losses - 1), 600)' in provider
+assert 'response.allHeaderFields[@"Retry-After"]' in provider
+assert 'configuration.URLCache = nil' in provider
+assert 'if (sg_kept.count >= kKeptTracks)' in sources
+assert '-[sg_keptAt[trackID] timeIntervalSinceNow] >= 86400' in sources
 lines = sources[sources.index('static const NSInteger kBreakMs'):sources.index('#pragma mark - which sources')]
 hook = (SRC / 'Shared/LyricsSources/LyricsHook.x').read_text(encoding='utf-8')
 page = hook[hook.index('static NSData *defaultColours'):hook.index('static NSString *timingName')]
@@ -87,7 +99,7 @@ int main(void) { @autoreleasepool {
 main = OUT / 'main.m'
 main.write_text(prefix + lines + parser + page + clutter + tests, encoding='utf-8')
 if sys.platform != 'darwin':
-    print('Source extraction and lifecycle/compatibility guards passed; Objective-C runtime checks require macOS.')
+    print('Spicy request lifecycle, source extraction and compatibility guards passed; Objective-C runtime checks require macOS.')
     sys.exit(0)
 executable = OUT / 'check'
 subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-fblocks', '-I', str(OUT), '-I', str(SRC),

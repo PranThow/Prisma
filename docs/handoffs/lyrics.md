@@ -13,3 +13,11 @@
 - Checks: `git fetch origin && git merge origin/main` (already up to date); `python harness/audio-lyrics/check.py` (passed source extraction and compatibility guard checks on Windows).
 - Remaining blocker: automatic Eevee detection has no independent evidence and remains intentionally unsupported; users must enable the compatibility setting and restart.
 - Required device checks: restart with sources enabled, then with compatibility enabled; verify the external tweak's lyrics and the normal Spotify flag/card behavior are untouched in both looks.
+
+## L01 - Validate the independent provider client
+
+- Changed files: `harness/audio-lyrics/check.py`.
+- Result: The existing Spicy Lyrics client remains unchanged. The focused regression now verifies its publishable-key and rejection guards, redirect and 2 MiB response limits, stale-key suppression, 429/5xx exponential backoff with Retry-After, no URL cache, and the shared bounded 24-hour lyrics cache.
+- Checks: `git fetch origin && git merge origin/main` (already up to date); `python harness/audio-lyrics/check.py` (passed Spicy request lifecycle, source extraction and compatibility guards on Windows); `python -m py_compile harness/audio-lyrics/check.py` (passed); `git diff --check` (passed).
+- Remaining blocker: the Objective-C parser assertions and NSURLSession behavior require macOS/Foundation and have not run on this Windows host.
+- Required macOS and device checks: run `python3 harness/audio-lyrics/check.py` on macOS; on device, test valid, rejected and missing keys; malformed/oversize and 429/offline responses; then replace a track during a request and verify only that track's lyrics and linked credits appear.
