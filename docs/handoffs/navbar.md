@@ -35,3 +35,11 @@
 - **Checks:** `powershell -ExecutionPolicy Bypass -File harness/tabbar/selection-check.ps1` (passed); `git diff --check` (passed).
 - **Blockers:** None. No integration request.
 - **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or validate navigation against Spotify. On macOS/iPhone, open a custom link, push and pop, switch stock tabs, reorder/remove the selected custom tab, and verify the selected glass item follows the active destination without stale highlights.
+
+## N04 - Verify Native add-tab sheet and icon picker
+
+- **Changed:** `tweak/Sources/Native/Navbar/NavbarSettings.m`; `harness/tabbar/native-editor-check.ps1`; `docs/parity-checklist.md`; `docs/handoffs/navbar.md`; `.lane-commit-msg`.
+- **Behavior:** Selecting a Native preset now supplies that selected preset to the add-tab editor instead of referencing a nonexistent `_presets` ivar. The existing editor continues to normalize/reject unopenable links, search runtime-proven Spotify glyphs and available SF Symbols, preview choices, and persist the title, URI, icon, and unique custom-tab identity.
+- **Checks:** `powershell -ExecutionPolicy Bypass -File harness/tabbar/native-editor-check.ps1` (passed); `git diff --check` (passed).
+- **Blockers:** None in the owned files. No integration request.
+- **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or exercise the sheet. On macOS/iPhone, verify preset and arbitrary-link add/cancel, invalid-link alert, glyph/SF previews and search, persistence/rendering after relaunch, keyboard and VoiceOver.
