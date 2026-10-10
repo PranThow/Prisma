@@ -1,5 +1,12 @@
 # Player lane handoffs
 
+## V01 - Verify independent visible-consumer artwork requests
+
+- **Changed files:** `harness/canvas/resolver.m`, `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
+- **Result:** Canvas resolution remains independent of lock-screen availability and preferences while any visible in-app consumer is registered. Removing one of two consumers now has a regression assertion proving the other still retains the result; removing the final consumer clears the result and cancels any work. Player and browsed-album Apple resolver/preparer instances remain separate, so album state cannot replace the current-track publisher state.
+- **Executed checks:** PowerShell V01 source-contract check passed (Canvas consumer registration is independent of lock-screen settings; Player and Album use separate Apple resolver/preparer instances). `git diff --check` passed.
+- **Blockers and device checks still owed:** Run `sh harness/canvas/check.sh`, `sh harness/apple-music-artwork/check.sh` and `env -u MAKELEVEL gmake -C tweak clean package` on macOS. On iOS 26 with Spotify 9.1.78, disable lock-screen animation while the player video is visible; verify it continues, then hide the final visible consumer and confirm cancellation. Browse album B while track A plays, including A-to-B-to-A changes, and confirm neither the player nor lock-screen publisher shows B's result.
+
 ## B03 - Verify fluid player lifecycle
 
 - **Changed files:** `harness/player-fluid/check-source.py`, `docs/parity-checklist.md`, `docs/handoffs/player.md`, `.lane-commit-msg`.
