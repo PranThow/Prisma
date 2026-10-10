@@ -17,7 +17,7 @@ close parity on a real device.
 - [x] **L01** Validate the independent provider client
 - [x] **L02** Validate provider ordering and credit propagation
 - [x] **L03** Validate linked credits in both lyrics looks
-- [ ] **F02** Retry lyrics after a background track change
+- [x] **F02** Retry lyrics after a background track change
 
 ## Player <!-- lane: player -->
 

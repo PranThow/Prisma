@@ -48,6 +48,8 @@ karaoke = (SRC / 'Shared/Lyrics/KaraokeSource.x').read_text(encoding='utf-8')
 assert 'SGAddPlayerStateObserver(sg_stateObserver)' in karaoke
 assert 'UIApplicationDidBecomeActiveNotification' in karaoke
 assert 'SGSpotifyAuthorizationDidChange' in karaoke
+assert '[sg_stateObserver playerStateDidChange:playerState() ?: SGPlayerState()]' in karaoke
+assert 'if (!lines) { [sg_requested removeObject:trackID]; return; }' in karaoke
 clutter_source = (SRC / 'Shared/Privacy/Clutter.m').read_text(encoding='utf-8')
 clutter = clutter_source[clutter_source.index('static NSString *const socialProofFlags'):].replace('__attribute__((constructor)) ', '')
 prefix = '''#import <Foundation/Foundation.h>

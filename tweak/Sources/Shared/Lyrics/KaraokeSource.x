@@ -190,7 +190,8 @@ static void requestFromSpotify(NSString *trackID) {
             }
             [sg_asking removeObject:trackID];
             [sg_losses removeObjectForKey:trackID];
-            if (!lines) return;
+            // An empty successful reply is not a result: foregrounding may find lyrics after it.
+            if (!lines) { [sg_requested removeObject:trackID]; return; }
             // Asked after the chain found plain text only: Spotify's replace it only when they are timed.
             NSArray<SGKaraokeLine *> *kept = sg_lyrics[trackID];
             if (kept && SGKaraokeLinesTiming(kept) <= SGKaraokeLinesTiming(lines)) return;
@@ -376,7 +377,8 @@ static SGKaraokeStateObserver *sg_stateObserver;
     NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
     for (NSString *name in @[UIApplicationDidBecomeActiveNotification, SGSpotifyAuthorizationDidChange]) {
         [center addObserverForName:name object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
-            [sg_stateObserver playerStateDidChange:SGPlayerState() ?: playerState()];
+            // The player can change tracks while Spotify is backgrounded, before PlayerState publishes again.
+            [sg_stateObserver playerStateDidChange:playerState() ?: SGPlayerState()];
         }];
     }
     %init(SGKaraokePlayer);
