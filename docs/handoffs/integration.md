@@ -15,3 +15,11 @@
 - Commands/results: `python harness/packaging/check.py` passed (`metadata preservation, atomic packaging and icon decoding passed`); `python -m py_compile scripts/generate-icons.py scripts/package-metadata.py harness/packaging/check.py` passed; `C:\\Program Files\\Git\\bin\\bash.exe -lc 'PATH=/usr/bin:/bin:$PATH; sh scripts/check-layers.sh tweak/Sources'` passed; `git diff --check` passed.
 - Blockers: no source blocker. These are static PNG alternates, not layered Liquid Glass/Icon Composer assets.
 - macOS and device checks owed: package/sign on macOS, then on an iPhone and iPad verify each alternate icon is available, switches correctly, and restores the default icon after relaunch.
+
+## I02 - verify alternate icon selection and availability
+
+- Changed files: `docs/parity-checklist.md`, `docs/handoffs/integration.md`, `.lane-commit-msg`. No production source change was made.
+- Behavior: source inspection confirms the existing App icon page previews the packaged default and three Prisma variants, derives its checkmark from `alternateIconName`, gates the entry on iOS availability, `supportsAlternateIcons`, and packaged metadata, and handles completion errors before reloading the actual selection.
+- Commands/results: I02 PowerShell source-contract check passed (availability, metadata, selection, completion, and error handling). `python harness/packaging/check.py` passed (`metadata preservation, atomic packaging and icon decoding passed`). `C:\\Program Files\\Git\\bin\\bash.exe -lc 'PATH=/usr/bin:/bin:$PATH; sh scripts/check-layers.sh tweak/Sources'` passed. `git diff --check` passed.
+- Blockers: Windows cannot build/sign the Prisma IPA or invoke UIKit's alternate-icon API. Device switching is required for task completion.
+- macOS and device checks owed: package/sign on macOS, then on an iPhone and iPad select Violet, Emerald, and Pearl; restore Default; verify the Home Screen result, error/unsupported handling, and the selected row after each relaunch.
