@@ -29,7 +29,7 @@ close parity on a real device.
 - [x] **U03** Verify tap-to-seek alongside dragging
 - [x] **B01** Verify the cover-based fluid renderer
 - [x] **B02** Complete fluid controls, preview, reset and migration
-- [ ] **B03** Verify fluid player lifecycle
+- [x] **B03** Verify fluid player lifecycle
 - [ ] **V01** Verify independent visible-consumer artwork requests
 - [ ] **V02** Verify looping video, provider order and fluid fallback
 - [ ] **V03** Verify video cover transitions and accessibility
