@@ -46,6 +46,9 @@ binary/tree paths, UUID check, each offset/call signature and runtime traces for
 start, buffering, seek, A-to-B-to-A, stop and disposal. Only then can an
 interception point be selected safely.
 
+The task-owned blocker record is also in [Sing evidence](../sing-evidence.md), so
+future S01/S02 work has one reproducible checklist outside this handoff.
+
 ## P01 — iOS 26 redesign gate
 
 Recommendation: retain the iOS 26 gate. `SGRedesignAvailable()` gates the
