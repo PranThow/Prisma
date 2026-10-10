@@ -122,7 +122,7 @@ static void appendTab(NSDictionary *tab) {
 - (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
     [table deselectRowAtIndexPath:path animated:YES];
     SGTabEditor *editor = [SGTabEditor new];
-    editor.initialEntry = path.section == 0 ? _presets[(NSUInteger)path.row] : nil;
+    editor.initialEntry = path.section == 0 ? tabPresets()[(NSUInteger)path.row] : nil;
     __weak typeof(self) weakSelf = self;
     editor.saved = ^(NSDictionary *entry) {
         appendTab(entry);
