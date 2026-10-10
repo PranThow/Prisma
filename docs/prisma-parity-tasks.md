@@ -82,9 +82,28 @@ document. A lane that needs one of those changed writes the exact change in its 
 
 ```
 You are the <lane name> lane agent (lane <N>) in docs/prisma-parity-tasks.md.
-Read AGENTS.md, docs/tweaks.md, docs/parity-implementation.md and the whole
-"Instructions to include with every assignment" and "Lanes" sections of that doc.
-Then do your lane's tasks in order, following "Rules for every lane agent".
+
+1. Read AGENTS.md, docs/tweaks.md, docs/parity-implementation.md, the
+   "Instructions to include with every assignment" and "Lanes" sections of
+   docs/prisma-parity-tasks.md, and your lane's file in docs/handoffs/.
+2. Run `git fetch origin && git merge origin/main`. Pick the first task in your
+   lane that the claim table and your handoff file don't already show as done
+   or blocked. Do exactly one task.
+3. Edit only that task's Own: files. If existing code already meets the task,
+   that's a valid result: add a regression check if one is missing, otherwise
+   change nothing. If it needs a file you don't own, unproven selectors, the
+   Spotify binary, recorded trees or macOS, record it as blocked and stop.
+4. Append the handoff to docs/handoffs/<lane>.md: task ID, exact changed files,
+   resulting behavior, commands run with results, blockers, and the macOS and
+   device checks still owed.
+5. Commit everything on your lane branch: one commit for the task, a lowercase
+   conventional prefix (fix: only for a behavior change, test: or docs:
+   otherwise), and the handoff included. `git status` must be clean.
+   Never push and never touch main.
+6. Stop. Report only: task ID, commit hash, one line on what changed, checks
+   run, checks skipped.
+
+A report without a commit hash means the task isn't done.
 ```
 
 | Inventory area | Task IDs | Coordination |
@@ -118,7 +137,7 @@ their handoff files.
 | N01 | Navbar | `Redesigned/Navbar/MiniPlayer.inc`, `harness/tabbar/main.m` | Merged; VoiceOver device check pending | `docs/handoffs/navbar.md` |
 | R01/R02 | Updates/Evidence | `App/About/SGVersion.h`, `harness/update/versions.m` | Merged; macOS harness pending | `docs/handoffs/updates-evidence.md` |
 | R03 | Integration owner | Release Please config (review only) | Reviewed; needs non-publishing parse run | `docs/handoffs/updates-evidence.md` |
-| S01/S02 | Updates/Evidence | - | Blocked: no distributable model, streamed-source ABI unproven | `docs/handoffs/updates-evidence.md` |
+| S01/S02 | Updates/Evidence | `docs/sing-evidence.md` | Blocked: no distributable model, streamed-source ABI unproven | `docs/sing-evidence.md` |
 | P01-P04 | Updates/Evidence | - | Recommendations recorded | `docs/handoffs/updates-evidence.md` |
 | F06 | Player | `Redesigned/Player/PlayerArtwork.x`, `SGRPlayerPolicy.h`, `harness/player-policy/main.c` | Merged; macOS harness and paused open/close device check pending | `docs/handoffs/player.md` |
 | A01-A05, H01-H03 | Artwork/Album | - (no changes) | Source parity confirmed; macOS harnesses and device checks pending. E01-E03 not checked | `docs/handoffs/artwork-album.md` |
@@ -127,7 +146,7 @@ their handoff files.
 | D01-D03 | Audio/Connect | - (no change) | Reviewed; macOS audio harness pending | `docs/handoffs/audio-connect.md` |
 | C01/C03 | Audio/Connect | `Shared/Navigation/ConnectDiscovery.x` | Merged; socket harness and real Connect/Cast devices pending | `docs/handoffs/audio-connect.md` |
 | E01-E03 | Artwork/Album | - (no change) | Source parity confirmed; macOS harness and iOS 26 device pending | `docs/handoffs/artwork-album.md` |
-| F07 | Player | `harness/objc-evidence/check.py` | Uncommitted, not merged. F08 blocked on Free-player trees | - |
+| F07 | Player | `harness/objc-evidence/check.py` | Merged; Free-player hook metadata verified. F08 blocked on recorded Free-player trees | `docs/handoffs/player.md` |
 
 ## Small correctness fixes
 
