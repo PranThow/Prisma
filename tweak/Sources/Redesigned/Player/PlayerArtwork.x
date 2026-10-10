@@ -22,11 +22,17 @@ static NSHashTable<UIView *> *sg_tilts;
 // The cover of each tilt view once found. A frame Spotify sets on a scaled view becomes its scaled
 // size, leaving bounds that no longer match the tilt view's, so the cover is not looked for by size again.
 static NSMapTable<UIView *, UIView *> *sg_covers;
+static BOOL sg_holdingTransitionScale;
+static CGFloat sg_transitionScale;
 
 static CGFloat currentScale(void) {
     SPTPlayerState *state = SGPlayerState();
     if (!state.isPaused) return 1;
     return SGRReduceMotion() ? kPausedScaleReduceMotion : kPausedScale;
+}
+
+static CGFloat displayedScale(void) {
+    return SGRPlayerDisplayedCoverScale(sg_holdingTransitionScale, sg_transitionScale, currentScale());
 }
 
 // The child of the tilt view the size of the cover.
@@ -136,7 +142,7 @@ static void applyCoverVisibility(void) {
 #pragma mark - the paused shrink
 
 static void scaleEveryCover(BOOL animated) {
-    CGFloat scale = currentScale();
+    CGFloat scale = displayedScale();
     NSArray<UIView *> *tilts = sg_tilts.allObjects;
     void (^apply)(void) = ^{
         for (UIView *tilt in tilts) scaleCover(tilt, scale);
@@ -166,7 +172,7 @@ static void scaleEveryCover(BOOL animated) {
     plate.bounds = cover.bounds;
     plate.center = cover.center;
     // The same value an animation in flight is heading to, so a layout pass never cuts one short.
-    scaleCover(tilt, currentScale());
+    scaleCover(tilt, displayedScale());
     if (sg_videoActive || sg_coverStandIn) applyCoverVisibility();
 
     static dispatch_once_t once;
@@ -203,6 +209,9 @@ static void scaleEveryCover(BOOL animated) {
     NSInteger paused = state.isPaused ? 1 : 0;
     if (paused == _paused) return;
     _paused = paused;
+    // The morph measures the cover's drawn frame. Keep that frame until it has finished, then let
+    // the new state animate in; otherwise a pause/resume in the morph makes the flying cover jump.
+    if (sg_holdingTransitionScale) return;
     scaleEveryCover(YES);
     static NSUInteger logged;
     if (logged++ < 3) SGLog(@"redesign player: state paused=%d loading=%d, %lu covers scaled", state.isPaused, state.isLoading, (unsigned long)sg_tilts.count);
@@ -220,8 +229,11 @@ static SGRPlayerArtworkWatcher *sg_artworkWatcher;
     sg_artworkWatcher = [SGRPlayerArtworkWatcher new];
     SGAddPlayerStateObserver(sg_artworkWatcher);
     SGRObservePlayerTransition(sg_artworkWatcher, ^(id owner) {
-        scaleEveryCover(YES);
+        sg_transitionScale = currentScale();
+        sg_holdingTransitionScale = YES;
+        scaleEveryCover(NO);
     }, ^(id owner) {
+        sg_holdingTransitionScale = NO;
         scaleEveryCover(YES);
         static dispatch_once_t once;
         dispatch_once(&once, ^{ SGLog(@"redesign player: transition over, cover scale %.2f", currentScale()); });

@@ -9,3 +9,6 @@ static inline double SGRPlayerTapFraction(double x, double width, bool rtl) {
 static inline bool SGRPlayerShouldImmerse(bool eligible, double now, double lastTouch) {
     return eligible && isfinite(now) && isfinite(lastTouch) && now - lastTouch >= 4;
 }
+static inline double SGRPlayerDisplayedCoverScale(bool holdingTransition, double transitionScale, double currentScale) {
+    return holdingTransition ? transitionScale : currentScale;
+}
