@@ -41,6 +41,12 @@ static BOOL integratedPlayerEnabled(void) {
     [_last addTarget:self action:@selector(lastTab) forControlEvents:UIControlEventTouchUpInside];
     for (UIView *view in @[_cover, _title, _artist, _play, _first, _last]) [self addSubview:view];
     [self addTarget:self action:@selector(openPlayer) forControlEvents:UIControlEventTouchUpInside];
+    self.isAccessibilityElement = YES;
+    self.accessibilityTraits = UIAccessibilityTraitButton;
+    self.accessibilityCustomActions = @[
+        [[UIAccessibilityCustomAction alloc] initWithName:@"Previous track" target:self selector:@selector(skipPrevious:)],
+        [[UIAccessibilityCustomAction alloc] initWithName:@"Next track" target:self selector:@selector(skipNext:)],
+    ];
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(panned:)];
     pan.delegate = self;
     [self addGestureRecognizer:pan];
@@ -78,6 +84,15 @@ static BOOL integratedPlayerEnabled(void) {
         if (view == sgr_nowPlayingRoot) break;
     }
     [card accessibilityActivate];
+}
+- (BOOL)accessibilityActivate { [self openPlayer]; return YES; }
+- (BOOL)skipPrevious:(UIAccessibilityCustomAction *)action {
+    [(id<SPTPlayer>)SGKaraokePlayer() skipToPreviousTrackWithOptions:nil];
+    return YES;
+}
+- (BOOL)skipNext:(UIAccessibilityCustomAction *)action {
+    [(id<SPTPlayer>)SGKaraokePlayer() skipToNextTrackWithOptions:nil];
+    return YES;
 }
 - (void)firstTab { if (self.bar.sources.count) { SGRNavbarSelectItem(self.bar.sources.firstObject); forwardTap(self.bar.sources.firstObject); } }
 - (void)lastTab { if (self.bar.sources.count) { SGRNavbarSelectItem(self.bar.sources.lastObject); forwardTap(self.bar.sources.lastObject); } }

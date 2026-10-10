@@ -406,6 +406,8 @@ static void after(double seconds, dispatch_block_t block) {
     mini.frame = CGRectMake(0, 0, 360, 56);
     [mini setValue:@NO forKey:@"minimized"];
     [mini layoutIfNeeded];
+    assert(mini.isAccessibilityElement && mini.accessibilityTraits & UIAccessibilityTraitButton);
+    assert(mini.accessibilityCustomActions.count == 2);
     NSUInteger shownButtons = 0;
     for (UIView *view in mini.subviews) if ([view isKindOfClass:UIButton.class] && !view.hidden) shownButtons++;
     assert(shownButtons == 1);
