@@ -43,3 +43,11 @@
 - **Checks:** `powershell -ExecutionPolicy Bypass -File harness/tabbar/native-editor-check.ps1` (passed); `git diff --check` (passed).
 - **Blockers:** None in the owned files. No integration request.
 - **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or exercise the sheet. On macOS/iPhone, verify preset and arbitrary-link add/cancel, invalid-link alert, glyph/SF previews and search, persistence/rendering after relaunch, keyboard and VoiceOver.
+
+## F09 (Native) - Keep custom destinations selected
+
+- **Changed:** `harness/tabbar/native-selection-check.ps1`; `docs/parity-checklist.md`; `docs/handoffs/navbar.md`; `.lane-commit-msg`.
+- **Behavior:** Existing Native navbar selection keeps a successfully opened custom destination selected while it owns navigation, clears it when a stock tab or external navigation takes over, and retains custom-item identity across reorder while removed items are detached and released.
+- **Checks:** `powershell -ExecutionPolicy Bypass -File harness/tabbar/native-selection-check.ps1` (passed); `git diff --check` (passed).
+- **Blockers:** None. No integration request.
+- **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or validate navigation against Spotify. On macOS/iPhone, open a custom link, push and pop, switch stock tabs, reorder/remove the selected custom tab, and verify selection never goes stale.
