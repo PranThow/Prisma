@@ -165,6 +165,9 @@ their handoff files.
 | B02 | Player | - (no source change) | Merged; macOS build/fluid harness and iOS 26 control/reset/migration checks pending | `docs/handoffs/player.md` |
 | F09 (Native) | Navbar | `harness/tabbar/native-selection-check.ps1` (no source change) | Merged; macOS build and device navigation/reorder/remove checks pending | `docs/handoffs/navbar.md` |
 | C02 | Integration | `harness/packaging/check.py` | Merged; macOS release/install signing and real Connect/Cast discovery pending | `docs/handoffs/integration.md` |
+| B03 | Player | `harness/player-fluid/check-source.py` (no source change) | Merged; macOS fluid harness/build and iOS 26 lifecycle/transition performance checks pending | `docs/handoffs/player.md` |
+| F10 | Navbar | `Native/Navbar/TabBarHooks.x`, `Redesigned/Navbar/TabBar.x`, `harness/tabbar/layout-coalescing-check.ps1` | Merged; macOS build and device callback counts/live editing checks pending in both looks | `docs/handoffs/navbar.md` |
+| T01 | Integration | - (no source change) | Merged; macOS build and device destination/reset checks pending in both looks | `docs/handoffs/integration.md` |
 
 ## Small correctness fixes
 
