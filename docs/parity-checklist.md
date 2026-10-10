@@ -15,7 +15,7 @@ close parity on a real device.
 - [x] **F01** Keep serialized lyric starts nondecreasing
 - [x] **F03** Suppress competing external lyrics hooks
 - [x] **L01** Validate the independent provider client
-- [ ] **L02** Validate provider ordering and credit propagation
+- [x] **L02** Validate provider ordering and credit propagation
 - [ ] **L03** Validate linked credits in both lyrics looks
 - [ ] **F02** Retry lyrics after a background track change
 

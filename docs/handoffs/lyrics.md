@@ -21,3 +21,12 @@
 - Checks: `git fetch origin && git merge origin/main` (already up to date); `python harness/audio-lyrics/check.py` (passed Spicy request lifecycle, source extraction and compatibility guards on Windows); `python -m py_compile harness/audio-lyrics/check.py` (passed); `git diff --check` (passed).
 - Remaining blocker: the Objective-C parser assertions and NSURLSession behavior require macOS/Foundation and have not run on this Windows host.
 - Required macOS and device checks: run `python3 harness/audio-lyrics/check.py` on macOS; on device, test valid, rejected and missing keys; malformed/oversize and 429/offline responses; then replace a track during a request and verify only that track's lyrics and linked credits appear.
+
+## L02 - Validate provider ordering and credit propagation
+
+- Changed files: `harness/audio-lyrics/check.py`; `docs/parity-checklist.md`; `docs/handoffs/lyrics.md`.
+- Result: Existing provider-order normalization rejects unknown and duplicate keys, preserves enabled ordering for the walk, and keeps the winning linked attribution through the bounded cache and karaoke lines. Credits that require links remain withheld from Lock Screen and Live Activity, which cannot display them.
+- Checks: `python harness/audio-lyrics/check.py` (passed source extraction, provider-order/attribution and compatibility guards on Windows); `python -m py_compile harness/audio-lyrics/check.py` (passed); `git diff --check` (passed).
+- Blockers: Objective-C runtime assertions require macOS/Foundation; source checks do not prove the UI presentation or provider network behavior.
+- Required macOS and device checks: run `python3 harness/audio-lyrics/check.py` on macOS; on device, reorder/disable sources and verify the winning provider's linked credit in Native and Redesigned lyrics, while Lock Screen and Live Activity show no restricted lyrics.
+- Integration request: none.
