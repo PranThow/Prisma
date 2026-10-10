@@ -120,8 +120,8 @@ their handoff files.
 | R03 | Integration owner | Release Please config (review only) | Reviewed; needs non-publishing parse run | `docs/handoffs/updates-evidence.md` |
 | S01/S02 | Updates/Evidence | - | Blocked: no distributable model, streamed-source ABI unproven | `docs/handoffs/updates-evidence.md` |
 | P01-P04 | Updates/Evidence | - | Recommendations recorded | `docs/handoffs/updates-evidence.md` |
-| F06 | Player | `Redesigned/Player/PlayerArtwork.x`, `SGRPlayerPolicy.h`, `harness/player-policy/` | Uncommitted, no handoff; not merged | - |
-| Artwork/Album | Artwork/Album | - | Reported source parity met, no changes; no handoff file | - |
+| F06 | Player | `Redesigned/Player/PlayerArtwork.x`, `SGRPlayerPolicy.h`, `harness/player-policy/main.c` | Merged; macOS harness and paused open/close device check pending | `docs/handoffs/player.md` |
+| A01-A05, H01-H03 | Artwork/Album | - (no changes) | Source parity confirmed; macOS harnesses and device checks pending. E01-E03 not checked | `docs/handoffs/artwork-album.md` |
 
 ## Small correctness fixes
 
