@@ -411,11 +411,18 @@ static void after(double seconds, dispatch_block_t block) {
     NSUInteger shownButtons = 0;
     for (UIView *view in mini.subviews) if ([view isKindOfClass:UIButton.class] && !view.hidden) shownButtons++;
     assert(shownButtons == 1);
+    // At a narrow compact-width size, the endpoint controls must remain outside the
+    // cover, text and playback target between them.
+    mini.frame = CGRectMake(0, 0, 320, 56);
     [mini setValue:@YES forKey:@"minimized"];
     [mini setNeedsLayout]; [mini layoutIfNeeded];
     shownButtons = 0;
     for (UIView *view in mini.subviews) if ([view isKindOfClass:UIButton.class] && !view.hidden) shownButtons++;
     assert(shownButtons == 3);
+    UIButton *play = mini.subviews[3], *first = mini.subviews[4], *last = mini.subviews[5];
+    UIImageView *cover = mini.subviews[0];
+    assert(CGRectGetMaxX(first.frame) <= CGRectGetMinX(cover.frame));
+    assert(CGRectGetMaxX(play.frame) <= CGRectGetMinX(last.frame));
     NSLog(@"[harness] mini-player expanded/compact control checks passed");
 
 
