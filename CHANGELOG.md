@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.21.2](https://github.com/PranThow/Prisma/compare/v0.21.1...v0.21.2) (2026-10-10)
+
+
+### Fixes
+
+* clarify manual lyrics compatibility ([4309d0a](https://github.com/PranThow/Prisma/commit/4309d0a9645972df8465b1ab799d8a77ff8d51c0))
+* coalesce navbar layout updates ([46c24d8](https://github.com/PranThow/Prisma/commit/46c24d822a34665902f881660186c2b64e274728))
+* expose mini-player VoiceOver actions ([deec065](https://github.com/PranThow/Prisma/commit/deec0651af60976c6f34eacc5e24db241bcb997d))
+* guard player tap seek during dragging ([7f22082](https://github.com/PranThow/Prisma/commit/7f220820e79b464b037647eb42312937617af197))
+* pass native navbar presets to editor ([449dd13](https://github.com/PranThow/Prisma/commit/449dd13e34899286e321d25507eb8fb5247acbae))
+* preserve independent pitch setting ([185aac6](https://github.com/PranThow/Prisma/commit/185aac6c08c17c4ffa02cfdd276788b9ff82a122))
+* preserve paused cover scale through transitions ([3760bbd](https://github.com/PranThow/Prisma/commit/3760bbdc88d80951b2670ea5ad1d2ea1be12248e))
+* rediscover live playlist mix control ([6b1e989](https://github.com/PranThow/Prisma/commit/6b1e9893d7a585a9cd5e0ca6aae4a71a9637b40f))
+* resolve three macOS harness compile errors ([a35f9a3](https://github.com/PranThow/Prisma/commit/a35f9a3693166c2588b323b94fd473c34491f127))
+* retain valid Bonjour addresses after malformed entry ([09a3c2c](https://github.com/PranThow/Prisma/commit/09a3c2c8f9615ec7cef9efcdadbcb4d6c7d1a9ef))
+* retry lyrics for current foreground track ([3556231](https://github.com/PranThow/Prisma/commit/35562311e6e28d5aae63af3175393b40813c9c79))
+* return VoiceOver focus to the restored player cover ([78466bc](https://github.com/PranThow/Prisma/commit/78466bc24b6a2285ff420e7476ac5e6556296fb4))
+* validate update release metadata ([8f1628b](https://github.com/PranThow/Prisma/commit/8f1628b2abe3d28b89608ea4c95d32e5dec80a4b))
+
 ## [0.21.1](https://github.com/PranThow/Prisma/compare/v0.21.1...v0.21.1) (2026-10-08)
 
 
