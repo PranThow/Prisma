@@ -34,7 +34,7 @@ close parity on a real device.
 - [x] **V02** Verify looping video, provider order and fluid fallback
 - [x] **V03** Verify video cover transitions and accessibility
 - [ ] **M01** Establish the real Spotify action-menu contract — blocked: needs a Spotify 9.1.78 player More-menu recording plus the matching decrypted executable's Swift metadata/disassembly to prove action enumeration, cache/refresh, presentation, share and navigation lifetimes
-- [ ] **M02** Present the verified actions in a system menu
+- [ ] **M02** Present the verified actions in a system menu — blocked: depends on M01
 
 ## Artwork and album <!-- lane: artwork-album -->
 
