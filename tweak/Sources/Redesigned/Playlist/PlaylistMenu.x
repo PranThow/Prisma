@@ -217,6 +217,9 @@ void SGRPlaylistTakeCuration(UIView *cell) {
 - (CGFloat)wantedHeight;
 @end
 
+static UIView *curationIn(UIView *page);
+static UIView *pageFor(UIViewController *menu);
+
 @implementation SGRMenuBlock {
     SGRMenuRow *_sort, *_mix;
 }
@@ -266,9 +269,13 @@ void SGRPlaylistTakeCuration(UIView *cell) {
 // first and the pill is fired once it has: firing under an open sheet would put Spotify's next sheet behind
 // this one.
 - (void)sgr_rowTapped:(SGRMenuRow *)row {
-    UIView *pill = row.pill;
     UIViewController *menu = self.menu;
+    BOOL isMix = row == _mix;
     void (^fire)(void) = ^{
+        UIView *pill = row.pill;
+        UIView *page = pageFor(menu);
+        if (isMix && page) pillsIn(curationIn(page), NULL, &pill);
+        if (!pill.window || ![pill isDescendantOfView:page]) return;
         SGRActivate(pill);
         static BOOL logged;
         if (!logged) {
