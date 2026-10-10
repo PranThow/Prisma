@@ -136,17 +136,20 @@ their handoff files.
 | D04 | Audio/Connect | `Shared/Player/SpeedPitch.x`, `harness/speed/main.m` | Merged; simulator/device pending | `docs/handoffs/audio-connect.md` |
 | N01 | Navbar | `Redesigned/Navbar/MiniPlayer.inc`, `harness/tabbar/main.m` | Merged; VoiceOver device check pending | `docs/handoffs/navbar.md` |
 | R01/R02 | Updates/Evidence | `App/About/SGVersion.h`, `harness/update/versions.m` | Merged; macOS harness pending | `docs/handoffs/updates-evidence.md` |
-| R03 | Integration owner | Release Please config (review only) | Reviewed; needs non-publishing parse run | `docs/handoffs/updates-evidence.md` |
+| R03 | Updates/Evidence | Release Please config (review only) | Configs and workflow routing verified; non-publishing action run owed | `docs/handoffs/updates-evidence.md` |
 | S01/S02 | Updates/Evidence | `docs/sing-evidence.md` | Blocked: no distributable model, streamed-source ABI unproven | `docs/sing-evidence.md` |
 | P01-P04 | Updates/Evidence | - | Recommendations recorded | `docs/handoffs/updates-evidence.md` |
 | F06 | Player | `Redesigned/Player/PlayerArtwork.x`, `SGRPlayerPolicy.h`, `harness/player-policy/main.c` | Merged; macOS harness and paused open/close device check pending | `docs/handoffs/player.md` |
 | A01-A05, H01-H03 | Artwork/Album | - (no changes) | Source parity confirmed; macOS harnesses and device checks pending. E01-E03 not checked | `docs/handoffs/artwork-album.md` |
 | F03 | Lyrics | `harness/audio-lyrics/check.py` (no source change) | Merged; device check pending. Eevee not auto-detected | `docs/handoffs/lyrics.md` |
 | N02 | Navbar | `harness/tabbar/main.m` (no source change) | Merged; touch/scroll simulator check pending | `docs/handoffs/navbar.md` |
-| D01-D03 | Audio/Connect | - (no change) | Reviewed; macOS audio harness pending | `docs/handoffs/audio-connect.md` |
+| D01-D03 | Audio/Connect | - (no change) | Reviewed; D01 blocked on `harness/audio-routing/check.sh` (macOS) | `docs/handoffs/audio-connect.md` |
 | C01/C03 | Audio/Connect | `Shared/Navigation/ConnectDiscovery.x` | Merged; socket harness and real Connect/Cast devices pending | `docs/handoffs/audio-connect.md` |
 | E01-E03 | Artwork/Album | - (no change) | Source parity confirmed; macOS harness and iOS 26 device pending | `docs/handoffs/artwork-album.md` |
 | F07 | Player | `harness/objc-evidence/check.py` | Merged; Free-player hook metadata verified. F08 blocked on recorded Free-player trees | `docs/handoffs/player.md` |
+| L01 | Lyrics | `harness/audio-lyrics/check.py` (no source change) | Merged; macOS parser and device key/network checks pending | `docs/handoffs/lyrics.md` |
+| N03 | Navbar | - (no change) | Verified at source; relaunch both preference states on device | `docs/handoffs/navbar.md` |
+| U01 | Player | `harness/player-policy/main.c` | Merged; macOS harness and iOS 26 idle-timer checks pending | `docs/handoffs/player.md` |
 
 ## Small correctness fixes
 
