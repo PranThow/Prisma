@@ -113,7 +113,15 @@ their handoff files.
 
 | Task | Agent | Exact reserved files | State | Handoff/result |
 | --- | --- | --- | --- | --- |
-| Unclaimed | - | - | Unverified | No task execution is claimed by this breakdown |
+| F01 | Lyrics | `Shared/LyricsSources/LyricsHook.x` (no change needed) | Merged; macOS harness pending | `docs/handoffs/lyrics.md` |
+| D04 | Audio/Connect | `Shared/Player/SpeedPitch.x`, `harness/speed/main.m` | Merged; simulator/device pending | `docs/handoffs/audio-connect.md` |
+| N01 | Navbar | `Redesigned/Navbar/MiniPlayer.inc`, `harness/tabbar/main.m` | Merged; VoiceOver device check pending | `docs/handoffs/navbar.md` |
+| R01/R02 | Updates/Evidence | `App/About/SGVersion.h`, `harness/update/versions.m` | Merged; macOS harness pending | `docs/handoffs/updates-evidence.md` |
+| R03 | Integration owner | Release Please config (review only) | Reviewed; needs non-publishing parse run | `docs/handoffs/updates-evidence.md` |
+| S01/S02 | Updates/Evidence | - | Blocked: no distributable model, streamed-source ABI unproven | `docs/handoffs/updates-evidence.md` |
+| P01-P04 | Updates/Evidence | - | Recommendations recorded | `docs/handoffs/updates-evidence.md` |
+| F06 | Player | `Redesigned/Player/PlayerArtwork.x`, `SGRPlayerPolicy.h`, `harness/player-policy/` | Uncommitted, no handoff; not merged | - |
+| Artwork/Album | Artwork/Album | - | Reported source parity met, no changes; no handoff file | - |
 
 ## Small correctness fixes
 
