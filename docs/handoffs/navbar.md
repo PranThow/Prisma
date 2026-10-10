@@ -19,3 +19,11 @@
 - **Checks:** `git fetch origin && git merge origin/main` (already up to date); PowerShell source-contract check for the preference plus both launch-time `dispatch_once` readers (passed); `git diff --check` (passed).
 - **Blockers:** None in the owned files. The separate-bar integration is already present but outside this task's reservation, so it was inspected only.
 - **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or validate device behavior. On macOS/iPhone, relaunch with the preference enabled and disabled; verify one player surface, no duplicate gestures/subscriptions or blank spacing, then verify Native mode remains unchanged.
+
+## N05 - Verify Redesigned add-tab sheet and icon picker
+
+- **Changed:** `harness/tabbar/editor-check.ps1`; `docs/parity-checklist.md`; `docs/handoffs/navbar.md`.
+- **Behavior:** The existing Redesigned editor remains independently persisted from Native: it normalizes and rejects unopenable Spotify links, supplies searchable Spotify glyphs and available SF Symbols with previews, and saves the title, canonical URI, selected icon, and a unique custom-tab identity.
+- **Checks:** `powershell -ExecutionPolicy Bypass -File harness/tabbar/editor-check.ps1` (passed); `git diff --check` (passed).
+- **Blockers:** None in the owned implementation. No integration request.
+- **Remaining:** Windows cannot run `harness/tabbar/build.sh`, compile the iOS tweak, or exercise the sheet. On macOS/iPhone, verify add/cancel, invalid-link alert, glyph and SF previews/search, persistence across relaunch, VoiceOver/keyboard, and that switching looks preserves both configurations.
